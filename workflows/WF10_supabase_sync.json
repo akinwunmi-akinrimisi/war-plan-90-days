@@ -5,7 +5,10 @@
       "parameters": {
         "httpMethod": "GET",
         "path": "tracker-data",
-        "responseMode": "responseNode"
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
       "name": "GET Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -16,7 +19,10 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "tracker-save",
-        "responseMode": "responseNode"
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
       "name": "POST Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -43,7 +49,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($json) }}",
+        "responseBody": "={{ JSON.stringify(Array.isArray($json) ? ($json[0] || {}) : $json) }}",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -76,19 +82,99 @@
     },
     {
       "parameters": {
-        "jsCode": "// PIN Validation\nconst pin = $input.first().json.body?.pin;\nconst storedPin = $input.first().json.config_pin;\nif (pin !== storedPin) {\n  return [{ json: { valid: false, error: 'Invalid PIN' } }];\n}\nreturn [{ json: { valid: true, body: $input.first().json.body } }];"
+        "jsCode": "// Merge POST body with config PIN for validation\nconst body = $('POST Webhook').first().json.body;\nconst configArr = $('Read Config PIN').first().json;\nconst config = Array.isArray(configArr) ? configArr[0] : configArr;\nconst storedPin = config?.tracker_pin || '';\nconst pin = body?.pin || '';\n\nif (!pin || pin !== storedPin) {\n  return [{ json: { valid: false, error: pin ? 'Invalid PIN' : 'PIN required' } }];\n}\n\n// Strip pin from payload before saving\nconst { pin: _p, ...payload } = body;\nreturn [{ json: { valid: true, payload } }];"
       },
       "name": "Validate PIN",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [690, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "PIN Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 500]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $json.payload.day_num }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify($json.payload) }}"
+      },
+      "name": "Save to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 400],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, day_num: $('Validate PIN').first().json.payload.day_num }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "name": "Respond Save OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1350, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Invalid PIN' }) }}",
+        "options": {
+          "responseCode": "401",
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "name": "Respond PIN Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1130, 650]
     }
   ],
   "connections": {
     "GET Webhook": { "main": [[{ "node": "Read Day Data", "type": "main", "index": 0 }]] },
     "Read Day Data": { "main": [[{ "node": "Respond GET", "type": "main", "index": 0 }]] },
     "POST Webhook": { "main": [[{ "node": "Read Config PIN", "type": "main", "index": 0 }]] },
-    "Read Config PIN": { "main": [[{ "node": "Validate PIN", "type": "main", "index": 0 }]] }
+    "Read Config PIN": { "main": [[{ "node": "Validate PIN", "type": "main", "index": 0 }]] },
+    "Validate PIN": { "main": [[{ "node": "PIN Valid?", "type": "main", "index": 0 }]] },
+    "PIN Valid?": { "main": [[{ "node": "Save to Supabase", "type": "main", "index": 0 }], [{ "node": "Respond PIN Error", "type": "main", "index": 0 }]] },
+    "Save to Supabase": { "main": [[{ "node": "Respond Save OK", "type": "main", "index": 0 }]] }
   },
   "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
   "tags": [{ "name": "war-plan" }]

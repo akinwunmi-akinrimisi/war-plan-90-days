@@ -275,6 +275,7 @@
 <script>
 // ── PIN ──────────────────────────────────────────────────────────────
 const PIN = '7749'; // change before deployment
+const SYNC_BASE = 'https://n8n.srv1297445.hstgr.cloud/webhook';
 function checkPin() {
   const val = document.getElementById('pinInput').value;
   if (val === PIN) {
@@ -847,13 +848,20 @@ function renderHeatmap() {
 }
 
 // ── INTERACTIONS ────────────────────────────────────────────────────
-function setDay(day) {
+async function setDay(day) {
   currentDay = day;
   renderSidebar();
   renderMain();
   document.getElementById('main').scrollTop = 0;
   const btn = document.querySelector('.day-btn.active');
   if (btn) btn.scrollIntoView({block:'nearest'});
+  // Background sync for this day
+  const row = await loadFromSupabase(day);
+  if (row) {
+    mergeSupabaseRow(day, row);
+    saveData();
+    renderMain();
+  }
 }
 
 function toggleSection(id) {
@@ -900,19 +908,126 @@ function autoSave() {
   autoSaveTimer = setTimeout(() => { saveData(); }, 800);
 }
 
-function saveCurrent() {
+async function saveCurrent() {
   data[currentDay].saved = true;
   saveData();
   renderSidebar();
   renderMain();
+  showSyncStatus(`SAVING DAY ${currentDay}...`, false);
+  const synced = await syncToSupabase(currentDay);
+  if (synced) {
+    showSyncStatus(`DAY ${currentDay} SAVED + SYNCED`, false);
+  } else {
+    showSyncStatus(`DAY ${currentDay} SAVED (offline — sync failed)`, true);
+  }
+}
+
+// ── SUPABASE SYNC ───────────────────────────────────────────────────
+let syncStatus = 'idle'; // idle | syncing | synced | error
+
+function showSyncStatus(msg, isError) {
   const toast = document.getElementById('toast');
-  toast.textContent = `✓ DAY ${currentDay} SAVED`;
+  toast.textContent = msg;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2200);
+  if (isError) toast.style.borderColor = 'var(--career)';
+  else toast.style.borderColor = '';
+  setTimeout(() => { toast.classList.remove('show'); toast.style.borderColor = ''; }, 2200);
+}
+
+async function loadFromSupabase(dayNum) {
+  try {
+    const res = await fetch(`${SYNC_BASE}/tracker-data?day=${dayNum}`);
+    if (!res.ok) return null;
+    const row = await res.json();
+    if (!row || !row.day_num) return null;
+    return row;
+  } catch(e) {
+    console.warn('Supabase load failed:', e.message);
+    return null;
+  }
+}
+
+async function syncToSupabase(dayNum) {
+  const d = data[dayNum];
+  if (!d) return;
+  syncStatus = 'syncing';
+  try {
+    const payload = {
+      pin: PIN,
+      day_num: dayNum,
+      date: WEEKDAY_DATES[dayNum - 1]?.toISOString().split('T')[0],
+      prayer_s1: d.prayer_s1 || false,
+      prayer_s2: d.prayer_s2 || false,
+      prayer_note: d.prayer_note || '',
+      nt_chapters_read: d.nt_chapters_read || [],
+      nt_note: d.nt_note || '',
+      book_title: d.book_title || '',
+      book_pages: d.book_pages || 0,
+      book_note: d.book_note || '',
+      code_hrs: d.code_hrs || 0,
+      code_what: d.code_what || '',
+      code_note: d.code_note || '',
+      proposals_sent: d.proposals_sent || 0,
+      revenue_today: d.revenue_today || 0,
+      career_done: d.career_done || false,
+      career_win: d.career_win || '',
+      career_note: d.career_note || '',
+      videos_published: d.videos_published || 0,
+      pipeline_running: d.pipeline_running || false,
+      yt_note: d.yt_note || '',
+      day_score: getDayScore(dayNum),
+      day_note: d.day_note || ''
+    };
+    const res = await fetch(`${SYNC_BASE}/tracker-save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (result.ok) {
+      syncStatus = 'synced';
+      return true;
+    } else {
+      syncStatus = 'error';
+      console.warn('Supabase save error:', result.error);
+      return false;
+    }
+  } catch(e) {
+    syncStatus = 'error';
+    console.warn('Supabase sync failed:', e.message);
+    return false;
+  }
+}
+
+function mergeSupabaseRow(dayNum, row) {
+  if (!row || !row.day_num) return;
+  const d = data[dayNum] || defaultDay();
+  // Merge: Supabase values take precedence if non-default
+  if (row.prayer_s1) d.prayer_s1 = row.prayer_s1;
+  if (row.prayer_s2) d.prayer_s2 = row.prayer_s2;
+  if (row.prayer_note) d.prayer_note = row.prayer_note;
+  if (row.nt_chapters_read && row.nt_chapters_read.length > 0) d.nt_chapters_read = row.nt_chapters_read;
+  if (row.nt_note) d.nt_note = row.nt_note;
+  if (row.book_title) d.book_title = row.book_title;
+  if (row.book_pages > 0) d.book_pages = row.book_pages;
+  if (row.book_note) d.book_note = row.book_note;
+  if (row.code_hrs > 0) d.code_hrs = row.code_hrs;
+  if (row.code_what) d.code_what = row.code_what;
+  if (row.code_note) d.code_note = row.code_note;
+  if (row.proposals_sent > 0) d.proposals_sent = row.proposals_sent;
+  if (row.revenue_today > 0) d.revenue_today = row.revenue_today;
+  if (row.career_done) d.career_done = row.career_done;
+  if (row.career_win) d.career_win = row.career_win;
+  if (row.career_note) d.career_note = row.career_note;
+  if (row.videos_published > 0) d.videos_published = row.videos_published;
+  if (row.pipeline_running) d.pipeline_running = row.pipeline_running;
+  if (row.yt_note) d.yt_note = row.yt_note;
+  if (row.day_note) d.day_note = row.day_note;
+  data[dayNum] = d;
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────
-function initTracker() {
+async function initTracker() {
   loadData();
 
   // Auto-select today's weekday number
@@ -931,6 +1046,15 @@ function initTracker() {
 
   renderSidebar();
   renderMain();
+
+  // Background Supabase sync for current day
+  const row = await loadFromSupabase(currentDay);
+  if (row) {
+    mergeSupabaseRow(currentDay, row);
+    saveData();
+    renderSidebar();
+    renderMain();
+  }
 }
 
 // Show PIN on load

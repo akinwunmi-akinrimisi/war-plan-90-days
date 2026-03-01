@@ -4,22 +4,33 @@
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 22 * * 0" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 22 * * 0"
+            }
+          ]
         }
       },
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [250, 200]
+      "position": [
+        250,
+        200
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\n// On Sunday dayNum will be null — compute weekNum from last Friday\nlet effectiveWeekNum = weekNum;\nif (!dayNum) {\n  // Find the most recent weekday\n  const yesterday = new Date(now);\n  yesterday.setDate(yesterday.getDate() - 1);\n  const yStr = yesterday.toISOString().split('T')[0];\n  for (let i = 0; i < weekdays.length; i++) {\n    if (weekdays[i].toISOString().split('T')[0] <= yStr) effectiveWeekNum = Math.ceil((i + 1) / 5);\n  }\n}\nreturn [{ json: { day_number: dayNum, week_num: effectiveWeekNum, is_weekend: isWeekend, date: todayStr } }];"
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date(Date.UTC(2026, 2, 2));\n  while (dates.length < 90) {\n    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) dates.push(d.toISOString().split('T')[0]);\n    d = new Date(d.getTime() + 86400000);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i] === todayStr) { dayNum = i + 1; break; }\n}\nconst watDay = new Date(todayStr + 'T12:00:00Z').getUTCDay();\nconst isWeekend = watDay === 0 || watDay === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\n// On Sunday dayNum will be null — compute weekNum from last Friday\nlet effectiveWeekNum = weekNum;\nif (!dayNum) {\n  // Find the most recent weekday\n  const yesterday = new Date(now);\n  yesterday.setDate(yesterday.getDate() - 1);\n  const yStr = yesterday.toISOString().split('T')[0];\n  for (let i = 0; i < weekdays.length; i++) {\n    if (weekdays[i].toISOString().split('T')[0] <= yStr) effectiveWeekNum = Math.ceil((i + 1) / 5);\n  }\n}\nreturn [{ json: { day_number: dayNum, week_num: effectiveWeekNum, is_weekend: isWeekend, date: todayStr } }];"
       },
       "name": "Day Counter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [470, 200]
+      "position": [
+        470,
+        200
+      ]
     },
     {
       "parameters": {
@@ -28,25 +39,41 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" }
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            }
           ]
         }
       },
       "name": "Read Config",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [690, 200]
+      "position": [
+        690,
+        200
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "leftValue": "={{ $json[0].active }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ]
         }
@@ -54,7 +81,10 @@
       "name": "Is Active?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [910, 200]
+      "position": [
+        910,
+        200
+      ]
     },
     {
       "parameters": {
@@ -63,15 +93,24 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" }
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            }
           ]
         }
       },
       "name": "Get Weekly Logs",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1130, 200]
+      "position": [
+        1130,
+        200
+      ]
     },
     {
       "parameters": {
@@ -80,7 +119,10 @@
       "name": "Revenue Phase",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1350, 200]
+      "position": [
+        1350,
+        200
+      ]
     },
     {
       "parameters": {
@@ -89,7 +131,10 @@
       "name": "Weekly Stats",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1570, 200]
+      "position": [
+        1570,
+        200
+      ]
     },
     {
       "parameters": {
@@ -98,10 +143,22 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -111,7 +168,10 @@
       "name": "Patch Config",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1790, 200]
+      "position": [
+        1790,
+        200
+      ]
     },
     {
       "parameters": {
@@ -120,8 +180,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer __OPENROUTER_API_KEY__" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer __OPENROUTER_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -131,19 +197,29 @@
       "name": "OpenRouter Weekly Report",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2010, 200],
+      "position": [
+        2010,
+        200
+      ],
       "continueOnFail": true,
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.choices }}",
               "rightValue": "",
-              "operator": { "type": "array", "operation": "notEmpty" }
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
             }
           ]
         }
@@ -151,7 +227,10 @@
       "name": "AI Success?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [2230, 200]
+      "position": [
+        2230,
+        200
+      ]
     },
     {
       "parameters": {
@@ -160,7 +239,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -170,7 +252,10 @@
       "name": "Send Slack",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2450, 100]
+      "position": [
+        2450,
+        100
+      ]
     },
     {
       "parameters": {
@@ -179,10 +264,22 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -192,7 +289,10 @@
       "name": "Log Interaction",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2670, 100]
+      "position": [
+        2670,
+        100
+      ]
     },
     {
       "parameters": {
@@ -201,7 +301,10 @@
       "name": "Fallback",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2450, 400]
+      "position": [
+        2450,
+        400
+      ]
     },
     {
       "parameters": {
@@ -210,7 +313,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -220,7 +326,10 @@
       "name": "Send Slack Fallback",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2670, 400]
+      "position": [
+        2670,
+        400
+      ]
     },
     {
       "parameters": {
@@ -229,10 +338,22 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Prefer", "value": "return=minimal" }
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
           ]
         },
         "sendBody": true,
@@ -242,24 +363,172 @@
       "name": "Log Interaction Fallback",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2890, 400]
+      "position": [
+        2890,
+        400
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
-    "Day Counter": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]] },
-    "Read Config": { "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]] },
-    "Is Active?": { "main": [[{ "node": "Get Weekly Logs", "type": "main", "index": 0 }], []] },
-    "Get Weekly Logs": { "main": [[{ "node": "Revenue Phase", "type": "main", "index": 0 }]] },
-    "Revenue Phase": { "main": [[{ "node": "Weekly Stats", "type": "main", "index": 0 }]] },
-    "Weekly Stats": { "main": [[{ "node": "Patch Config", "type": "main", "index": 0 }]] },
-    "Patch Config": { "main": [[{ "node": "OpenRouter Weekly Report", "type": "main", "index": 0 }]] },
-    "OpenRouter Weekly Report": { "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]] },
-    "AI Success?": { "main": [[{ "node": "Send Slack", "type": "main", "index": 0 }], [{ "node": "Fallback", "type": "main", "index": 0 }]] },
-    "Send Slack": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
-    "Fallback": { "main": [[{ "node": "Send Slack Fallback", "type": "main", "index": 0 }]] },
-    "Send Slack Fallback": { "main": [[{ "node": "Log Interaction Fallback", "type": "main", "index": 0 }]] }
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Day Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Day Counter": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Is Active?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Active?": {
+      "main": [
+        [
+          {
+            "node": "Get Weekly Logs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get Weekly Logs": {
+      "main": [
+        [
+          {
+            "node": "Revenue Phase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revenue Phase": {
+      "main": [
+        [
+          {
+            "node": "Weekly Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Stats": {
+      "main": [
+        [
+          {
+            "node": "Patch Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch Config": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "AI Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Success?": {
+      "main": [
+        [
+          {
+            "node": "Send Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack": {
+      "main": [
+        [
+          {
+            "node": "Log Interaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack Fallback": {
+      "main": [
+        [
+          {
+            "node": "Log Interaction Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
-  "tags": [{ "name": "war-plan" }]
+  "settings": {
+    "timezone": "Africa/Lagos",
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "war-plan"
+    }
+  ]
 }

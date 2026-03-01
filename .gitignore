@@ -24,6 +24,10 @@ daily_log_seed.json
 
 # Deployment scripts (contain API keys)
 fix_webhooks.js
+verify_workflows.js
+fix_daycounter.js
+deploy_daycounter_fix.js
+*_temp.json
 
 # Claude Code
 .claude/

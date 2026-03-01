@@ -1,0 +1,25 @@
+{
+  "name": "WF13 — 90-Day War Plan: Weekly Lookback Email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "triggerAtHour": 8, "triggerAtMinute": 0 }] }
+      },
+      "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — calculate current week number and date range\nconst config = { start_date: '2026-03-02' };\nconst start = new Date(config.start_date + 'T00:00:00+01:00');\nconst now = new Date();\nconst diffDays = Math.floor((now - start) / 86400000);\nconst weekNum = Math.ceil((diffDays + 1) / 7);\n\n// Get Mon-Fri of current week\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nreturn [{ json: { weekNum, mondayDate: monday.toISOString().split('T')[0], fridayDate: friday.toISOString().split('T')[0] } }];"
+      },
+      "name": "Day Counter", "type": "n8n-nodes-base.code", "typeVersion": 2,
+      "position": [470, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }],
+  "_meta": { "status": "scaffold", "directive": "directives/14_weekly_lookback_email.md", "notes": "Placeholder — needs full build per directive 14. Remaining nodes: Supabase GET, Weekly Stats, Cumulative Stats, OpenRouter, Build HTML, Resend POST, Error Check, Telegram Fallback, Supabase POST interactions." }
+}

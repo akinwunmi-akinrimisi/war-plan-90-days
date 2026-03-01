@@ -1,6 +1,6 @@
 # Skills Reference
 ## 90-Day War Plan — AI Accountability Partner
-**Version 2.0 | Operscale / Cloudboosta Systems | March–May 2026**
+**Version 2.0 | Operscale / Cloudboosta Systems | March–July 2026**
 
 This document defines what this agent can do, what tools it uses to do it, and how each capability is invoked. Reference this before building any workflow node or writing any Claude prompt.
 
@@ -12,7 +12,7 @@ This document defines what this agent can do, what tools it uses to do it, and h
 
 **Model:** `anthropic/claude-sonnet-4-5` via OpenRouter
 **n8n node:** HTTP Request (POST to `https://openrouter.ai/api/v1/chat/completions`)
-**Credential:** n8n credential → `OpenRouter API Key`
+**Auth:** `Authorization: Bearer {OpenRouter API key}` — hardcoded on n8n server, `__OPENROUTER_API_KEY__` placeholder in local JSON files
 
 **Required inputs (context packet):**
 ```json
@@ -63,11 +63,9 @@ This document defines what this agent can do, what tools it uses to do it, and h
 
 **What it does:** Sends all primary accountability messages to Akinwunmi's personal Telegram.
 
-**n8n node:** Telegram node (built-in)
-**Credential:** n8n credential → `Telegram Bot API`
-**Config values (stored in Supabase `config` table):**
-- `telegram_bot_token` → set in n8n credential, never hardcoded
-- `telegram_chat_id` → Akinwunmi's personal chat ID
+**n8n node:** HTTP Request (POST to `https://api.telegram.org/bot{token}/sendMessage`)
+**Auth:** Bot token hardcoded on n8n server, `__TELEGRAM_BOT_TOKEN__` placeholder in local JSON files
+**Chat ID:** `463579738` — hardcoded on n8n server, `__TELEGRAM_CHAT_ID__` placeholder in local files
 
 **Supported message types:**
 - `sendMessage` — standard text messages (all reminders, escalations, replies)
@@ -82,7 +80,7 @@ This document defines what this agent can do, what tools it uses to do it, and h
 **What it does:** Posts morning briefings, night summaries, and weekly reports to `#war-plan` channel.
 
 **n8n node:** HTTP Request (POST to Slack Incoming Webhook URL)
-**Credential:** n8n credential → `Slack Webhook URL`
+**Auth:** Webhook URL hardcoded on n8n server, `__SLACK_WEBHOOK_URL__` placeholder in local JSON files
 **Channel:** `#war-plan`
 
 **Message format:** Slack Block Kit JSON for structured layouts (briefings/summaries). Plain text for simple notifications.
@@ -90,17 +88,59 @@ This document defines what this agent can do, what tools it uses to do it, and h
 **Rules:** Slack is secondary channel. All task reminders go to Telegram only. Only briefings, summaries, and weekly reports go to Slack.
 
 ---
+## 3.5 Email Delivery (Resend)
+
+**What it does:** Sends styled HTML weekly summary emails — a lookback every Sunday morning and a preview every Saturday evening.
+
+**n8n node:** HTTP Request (POST)
+**Endpoint:** `https://api.resend.com/emails`
+**Auth header:** `Authorization: Bearer {Resend API key}` — hardcoded on n8n server, `__RESEND_API_KEY__` placeholder in local JSON files
+
+**Request body:**
+```json
+{
+  "from": "War Plan <warplan@yourdomain.com>",
+  "to": ["akinolaakinrimisi@gmail.com"],
+  "subject": "{{ subject }}",
+  "html": "{{ htmlBody }}"
+}
+```
+
+**HTML email structure (both WF13 and WF14):**
+- Dark background (`#07090c`) matching war plan aesthetic — renders in most email clients
+- Top bar: title + week number + date range
+- Stat tiles: key numbers in Bebas Neue style (fallback: system bold sans-serif — web fonts don't load in email)
+- Colour-coded discipline rows: prayer (orange), NT (green), book (purple), code (blue), career (red), YouTube (dark orange)
+- Footer: scripture or quote + day count remaining
+
+**Rules:**
+- Use inline CSS only — no `<style>` blocks, no external fonts. Email clients strip them.
+- Keep total HTML under 100KB
+- Never send on a day the system is paused (`config.pause_until` check at workflow start)
+- If Resend delivery fails (non-2xx), log to `interactions` table with `status: failed` and send a plain-text fallback to Telegram
+
+**Error handling Code node:**
+```javascript
+const status = $response.statusCode;
+if (status < 200 || status > 299) {
+  // Log failure
+  return { success: false, error: `Resend HTTP ${status}`, fallback: true };
+}
+return { success: true, resend_id: $json.id };
+```
+
+**Directive:** `directives/14_weekly_lookback_email.md` (WF13) · `directives/15_weekly_preview_email.md` (WF14)
 
 ## 4. Tracker UI Serving (WF-UI)
 
 **What it does:** Serves `90day-tracker.html` as a live webpage when the Telegram link is opened in a browser.
 
 **n8n nodes (in order):**
-1. **Webhook** — Method: GET, Path: `/tracker`, Response Mode: Using Respond to Webhook Node
-2. **Read Binary File** — Path: `{{ $env.TRACKER_HTML_PATH }}` (resolves from `.env`)
-3. **Respond to Webhook** — Response Code: 200, Response Headers: `Content-Type: text/html`, Body: `{{ $binary.data.toString() }}`
+1. **Webhook** — Method: GET, Path: `/tracker`, Response Mode: Using Respond to Webhook Node (typeVersion 2.1 + webhookId required)
+2. **HTTP Request — Fetch Tracker HTML** — GET from GitHub raw URL: `https://raw.githubusercontent.com/akinwunmi-akinrimisi/war-plan-90-days/main/90day-tracker.html` (response format: `file`)
+3. **Respond to Webhook** — respondWith: `binary`, Response Headers: `Content-Type: text/html; charset=utf-8`, `Cache-Control: no-cache, no-store, must-revalidate`
 
-**Why the file is read dynamically:** Every request reads fresh from disk — updating `90day-tracker.html` takes effect immediately on the next page load. No restart, no node edit, no redeployment.
+**Why GitHub-served:** Pushing to `main` branch auto-deploys on next page load. No SSH, no server file paths, no restart needed.
 
 **Directive:** `directives/11_tracker_ui.md`
 
@@ -165,9 +205,8 @@ return { valid: true };
 **What it does:** Reads completion stats to build context packets. Writes completion events, interaction logs, and escalation states.
 
 **n8n node:** HTTP Request (Supabase REST API)
-**Credential:** n8n credential → `Supabase API Key`
-**Base URL:** `https://<project-ref>.supabase.co/rest/v1/`
-**Auth headers:** `apikey: <key>`, `Authorization: Bearer <key>`
+**Base URL:** `https://yjckymmudyionytzkxcb.supabase.co/rest/v1/`
+**Auth headers:** `apikey: {anon key}`, `Authorization: Bearer {anon key}` — hardcoded directly in workflow nodes (anon key is public-facing)
 
 **Read operations:**
 - `GET /daily_log?day_num=eq.{day}` — get today's completion data
@@ -217,6 +256,8 @@ return { valid: true };
 | 23:15 | WF08 | Mon–Fri | Night Summary → Slack + Telegram |
 | Every 30 min | WF06 | Mon–Fri | Escalation Engine check (03:00–23:30 only) |
 | Sunday 22:00 | WF09 | Sunday | Weekly Report → Slack |
+| 08:00 | WF13 | Sunday | Weekly Lookback Email → Resend |
+| 21:00 | WF14 | Saturday | Weekly Preview Email → Resend |
 
 **Rules:**
 - WF06 (Escalation) only runs Mon–Fri between 03:00 and 23:30
@@ -371,11 +412,12 @@ function getRevenuePhase(weekNum) {
 
 ## Known Constraints & Gotchas
 
-- **90day-tracker.html must exist on disk before WF-UI is activated** — if the file is missing, the Read Binary File node throws. Run `skills.sh` to verify the file is present at `TRACKER_HTML_PATH` before enabling WF-UI.
-- **TRACKER_HTML_PATH in .env must be absolute** — e.g. `/opt/war-plan-agent/90day-tracker.html`, not `./90day-tracker.html`. n8n resolves paths from its own working directory.
-- **PIN stored in Supabase `config` table, not `.env`** — can be updated without a restart. Never hardcode in a workflow node.
-
-- **daily_log must be seeded with 90 weekday rows** — `skills.sh` handles this. Dates must match the actual weekday calendar (not 90 consecutive calendar days). If seeding manually, verify the dates are Mon–Fri only.
+- **n8n Webhook nodes require typeVersion 2.1 + webhookId** — without both, webhooks return 404 even when the workflow is active. Always set `"typeVersion": 2.1` and include a unique `"webhookId"` UUID on every Webhook node.
+- **n8n respondToWebhook valid modes:** `"json"`, `"binary"`, `"noData"`, `"allIncomingItems"`. There is no `"text"` mode — use `"binary"` for HTML or `"json"` for JSON responses.
+- **n8n HTTP Request JSON body:** Use `contentType: "raw"` + `rawContentType: "application/json"` for raw JSON bodies. Using `specifyBody: "string"` sends as form-encoded data and will break Supabase PATCH calls.
+- **n8n $env.* vars are NOT available** on the self-hosted server — all credentials are hardcoded directly in workflow nodes. Supabase anon key (public) is committed; sensitive secrets use `__PLACEHOLDER__` patterns in local files, with real values deployed on n8n only.
+- **PIN stored in Supabase `config` table** — can be updated without a restart. Never hardcode in a workflow node.
+- **daily_log must be seeded with 90 weekday rows** — `skills.sh` handles this. Dates run March 2 – July 3, 2026 (Mon–Fri only, 90 weekdays). If seeding manually, verify the dates skip weekends.
 - **Weekend suppression is per-workflow** — the Schedule Trigger in n8n supports day-of-week filtering. Set WF01, WF03–WF09, WF11 to Mon–Fri only. WF02 and WF12 stay on every day.
 - **Revenue phase is stored in `config.revenue_phase`** and updated by WF09 (Weekly Report) every Sunday. This ensures all other workflows read the correct phase without recalculating from the date.
 - **OpenRouter rate limits:** Claude Sonnet via OpenRouter — add a 2-second delay between consecutive API calls in the same workflow run.
@@ -383,4 +425,7 @@ function getRevenuePhase(weekNum) {
 - **Supabase free tier pauses:** Project pauses after 7 days of inactivity. Since this system hits Supabase multiple times per hour on weekdays, this will never trigger during the 90-day run.
 - **n8n Cron precision:** Accurate to the minute with ~30s drift. Account for this in tight scheduling.
 - **Timezone:** All Crons must be set to `Africa/Lagos (WAT, UTC+1)`. Verify after every n8n server restart.
-- **Hardcoded API keys:** Never. All credentials via n8n credential store.
+- **WF-UI serves tracker from GitHub** — push to `main` branch to deploy. No server file paths or SSH needed.
+- **Resend "from" domain must be verified** — you must add a sending domain in your Resend dashboard and verify it via DNS before any email sends. Using an unverified domain returns HTTP 403. Free tier allows up to 3,000 emails/month — well within the ~36 emails this system sends across 90 days.
+- **Email HTML must use inline CSS only** — Gmail, Outlook, and mobile clients strip `<style>` blocks and `<head>` CSS. All styling must be on individual elements as `style=""` attributes. Web fonts (Google Fonts etc.) will not load — use system font stacks.
+- **Resend API key scope** — create a key with "Send access" only, not full access. Key hardcoded on n8n server, `__RESEND_API_KEY__` placeholder in local files.

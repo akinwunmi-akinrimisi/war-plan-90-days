@@ -2,11 +2,11 @@
 # =============================================================================
 # skills.sh — Environment Setup & Verification
 # 90-Day War Plan · AI Accountability Partner
-# Operscale / Cloudboosta Systems · March–May 2026
+# Operscale / Cloudboosta Systems · March–July 2026
 # =============================================================================
 # Run this script once on your n8n server before building any workflows.
 # It verifies all dependencies, tests all external connections, and seeds
-# the Supabase tables with 90 weekday rows (Mon–Fri, March 2 – May 29 2026).
+# the Supabase tables with 90 weekday rows (Mon–Fri, March 2 – July 3, 2026).
 #
 # Usage:
 #   chmod +x skills.sh
@@ -217,6 +217,44 @@ else
 fi
 
 echo ""
+echo -e "${BOLD}── 6b. Resend Email API ────────────────────────────────────────${RESET}"
+
+if [ -n "$RESEND_API_KEY" ]; then
+  # Validate key by calling the domains endpoint (read-only, no email sent)
+  RESEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer ${RESEND_API_KEY}" \
+    "https://api.resend.com/domains" 2>/dev/null || echo "000")
+  if [ "$RESEND_STATUS" = "200" ]; then
+    echo -e "${PASS} Resend API key valid"
+
+    # Check if a verified sending domain exists
+    DOMAINS_JSON=$(curl -s \
+      -H "Authorization: Bearer ${RESEND_API_KEY}" \
+      "https://api.resend.com/domains" 2>/dev/null)
+    VERIFIED_DOMAIN=$(echo "$DOMAINS_JSON" | jq -r \
+      '[.data[]? | select(.status=="verified")] | .[0].name // empty' 2>/dev/null)
+
+    if [ -n "$VERIFIED_DOMAIN" ]; then
+      echo -e "${PASS} Verified sending domain found → ${VERIFIED_DOMAIN}"
+      echo -e "    Set RESEND_FROM_EMAIL in .env as: warplan@${VERIFIED_DOMAIN}"
+    else
+      echo -e "${WARN}  No verified sending domain found in Resend"
+      echo -e "    Fix: resend.com/domains → Add Domain → verify DNS records"
+      echo -e "    Until verified, emails will fail with HTTP 403"
+    fi
+  else
+    echo -e "${FAIL} Resend API key invalid or Resend unreachable (HTTP ${RESEND_STATUS})"
+    echo -e "    Fix: resend.com → API Keys → Create Key (Send access) → set RESEND_API_KEY in .env"
+    ((ERRORS++))
+  fi
+else
+  echo -e "${FAIL} RESEND_API_KEY not set in .env"
+  echo -e "    Fix: resend.com → API Keys → Create Key → copy to .env as RESEND_API_KEY"
+  echo -e "    Also add: RESEND_FROM_EMAIL=warplan@yourdomain.com"
+  ((ERRORS++))
+fi
+
+echo ""
 echo -e "${BOLD}── 7. Supabase Schema Bootstrap ────────────────────────────────${RESET}"
 
 if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_API_KEY" ]; then
@@ -267,15 +305,14 @@ if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_API_KEY" ]; then
   if [ "$LOG_COUNT" -ge 90 ] 2>/dev/null; then
     echo -e "${PASS} daily_log has ${LOG_COUNT} rows (90 weekdays seeded)"
   else
-    echo -e "${INFO} Seeding daily_log with 90 weekday rows (March 2 – May 29 2026)..."
+    echo -e "${INFO} Seeding daily_log with 90 weekday rows (March 2 – July 3, 2026)..."
     # Generate weekday dates using Python (more reliable cross-platform than date arithmetic)
     WEEKDAY_DATES=$(python3 -c "
 from datetime import date, timedelta
 start = date(2026, 3, 2)
-end = date(2026, 5, 29)
 d = start
 days = []
-while d <= end and len(days) < 90:
+while len(days) < 90:
     if d.weekday() < 5:  # Mon=0 to Fri=4
         days.append(d.strftime('%Y-%m-%d'))
     d += timedelta(days=1)
@@ -330,7 +367,7 @@ print(' '.join(days))
       done
 
       if [ "$SEED_ERRORS" -eq 0 ]; then
-        echo -e "${PASS} daily_log seeded with 90 weekday rows (Day 1–90, March 2 – May 29)"
+        echo -e "${PASS} daily_log seeded with 90 weekday rows (Day 1–90, March 2 – July 3)"
       else
         echo -e "${WARN}  ${SEED_ERRORS} rows may have failed — check Supabase dashboard. Non-critical if rows already exist."
       fi
@@ -339,7 +376,7 @@ print(' '.join(days))
 fi
 
 echo ""
-echo -e "${BOLD}── 7. Tracker HTML File ────────────────────────────────────────${RESET}"
+echo -e "${BOLD}── 8. Tracker HTML (GitHub-Served) ─────────────────────────────${RESET}"
 
 if [ -n "$TRACKER_HTML_PATH" ]; then
   echo -e "${INFO} TRACKER_HTML_PATH set → ${TRACKER_HTML_PATH}"
@@ -384,7 +421,7 @@ if [ -n "$N8N_URL" ] && [ "$HTTP_STATUS" = "200" ]; then
 fi
 
 echo ""
-echo -e "${BOLD}── 8. n8n Timezone Verification ────────────────────────────────${RESET}"
+echo -e "${BOLD}── 9. n8n Timezone Verification ────────────────────────────────${RESET}"
 
 if [ -n "$N8N_API_KEY" ] && [ -n "$N8N_URL" ]; then
   TZ_RESPONSE=$(curl -s \

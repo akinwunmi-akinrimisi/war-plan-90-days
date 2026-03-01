@@ -1,0 +1,25 @@
+{
+  "name": "WF14 — 90-Day War Plan: Weekly Preview Email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "triggerAtHour": 21, "triggerAtMinute": 0 }] }
+      },
+      "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — calculate next week's number and date range\nconst config = { start_date: '2026-03-02' };\nconst start = new Date(config.start_date + 'T00:00:00+01:00');\nconst now = new Date();\nconst diffDays = Math.floor((now - start) / 86400000);\nconst currentWeek = Math.ceil((diffDays + 1) / 7);\nconst nextWeek = currentWeek + 1;\n\n// Get Mon-Fri of NEXT week\nconst daysUntilMonday = (8 - now.getDay()) % 7 || 7;\nconst monday = new Date(now);\nmonday.setDate(now.getDate() + daysUntilMonday);\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nreturn [{ json: { weekNum: nextWeek, mondayDate: monday.toISOString().split('T')[0], fridayDate: friday.toISOString().split('T')[0] } }];"
+      },
+      "name": "Day Counter", "type": "n8n-nodes-base.code", "typeVersion": 2,
+      "position": [470, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }],
+  "_meta": { "status": "scaffold", "directive": "directives/15_weekly_preview_email.md", "notes": "Placeholder — needs full build per directive 15. Remaining nodes: Supabase GET config, NT Assignments, Phase Targets, OpenRouter, Build HTML, Resend POST, Error Check, Telegram Fallback, Supabase POST interactions." }
+}

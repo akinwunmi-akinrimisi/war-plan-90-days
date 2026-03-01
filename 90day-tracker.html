@@ -938,7 +938,9 @@ async function loadFromSupabase(dayNum) {
   try {
     const res = await fetch(`${SYNC_BASE}/tracker-data?day=${dayNum}`);
     if (!res.ok) return null;
-    const row = await res.json();
+    const json = await res.json();
+    // WF10 returns array via allIncomingItems — unwrap first element
+    const row = Array.isArray(json) ? json[0] : json;
     if (!row || !row.day_num) return null;
     return row;
   } catch(e) {

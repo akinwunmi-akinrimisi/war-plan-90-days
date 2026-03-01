@@ -1,3 +1,6 @@
+> **Note:** BUILDER.md is the active instruction set when using Claude Code + Synta MCP to construct workflows.
+> It is not a runtime file and is not read by any n8n workflow.
+
 # Agent Instructions (DOE)
 ## 90-Day War Plan — AI Accountability Partner
 ### Directive → Observation → Experiment
@@ -6,7 +9,7 @@
 > Every message it sends must feel like it was written by someone who knows where you are in your 90 days,
 > what you've been completing, and what you need to hear right now — not a template.
 
-**Version 2.0 | Operscale / Cloudboosta Systems | March–May 2026**
+**Version 2.0 | Operscale / Cloudboosta Systems | March–July 2026**
 **Owner:** Akinwunmi Akinrimisi
 **Stack:** n8n (self-hosted) + Claude API (Sonnet) + Telegram Bot API + Slack Webhooks + Supabase (PostgreSQL)
 
@@ -15,7 +18,7 @@
 ## ⚠️ IMMUTABLE — Non-Negotiable Operating Rules
 
 - Read the relevant `directives/` file for every workflow stage before writing or modifying any logic.
-- Never hardcode API keys. Always reference n8n credentials or load from `.env` / Supabase secrets.
+- **Credential strategy:** Supabase URL and anon key are hardcoded directly in workflow nodes (anon key is public-facing). Sensitive secrets (Telegram bot token, Slack webhook URL, OpenRouter API key) are hardcoded on the deployed n8n server but stored as `__PLACEHOLDER__` patterns in the local JSON files committed to GitHub. Never commit real secrets to version control.
 - Every message Claude generates must receive a `context_packet` — day number, task type, tone mode, completion stats. Never call Claude with a bare prompt.
 - Treat every failed message delivery or missed Supabase write as a learning signal — self-anneal by fixing the node, then updating the directive.
 - Do not rewrite or regenerate this file unless explicitly instructed.
@@ -93,24 +96,28 @@ Single source of truth. n8n reads and writes here. The HTML daily tracker syncs 
 | WF10 | Supabase Sync | Webhook (GET + POST) | Serves day data to tracker + receives save payload → writes to Supabase |
 | WF11 | Career Reminders | Cron (×3 daily · Mon–Fri) | Career Block A, B, C prompts → Telegram |
 | WF12 | YouTube Check-in | Cron (×1 daily · every day) | Pipeline status check + video count nudge → Telegram |
+| WF13 | Weekly Lookback Email | Cron Sunday 08:00 AM | Concluded-week HTML summary → Resend → akinolaakinrimisi@gmail.com |
+| WF14 | Weekly Preview Email | Cron Saturday 09:00 PM | Coming-week HTML summary → Resend → akinolaakinrimisi@gmail.com |
 | WF-UI | Tracker UI | Webhook (GET) | Reads `90day-tracker.html` from disk → serves it as a webpage |
 
-### 3.4 Tracker Architecture (Way 2 — File on Disk)
+### 3.4 Tracker Architecture (GitHub-Served)
 
-The HTML daily tracker (`90day-tracker.html`) lives in the project root directory alongside `Agent.md`. It is **not** embedded inside any n8n node. Two workflows handle all tracker responsibilities:
+The HTML daily tracker (`90day-tracker.html`) lives in the project root and is **committed to GitHub**. It is never embedded inside any n8n node. Two workflows handle all tracker responsibilities:
 
 **WF-UI (Tracker UI Workflow)**
 - Triggered by a GET request to `/webhook/tracker`
-- Uses a Read Binary File node to read `90day-tracker.html` from disk at the path set in `.env` as `TRACKER_HTML_PATH`
-- Responds via Respond to Webhook node with `Content-Type: text/html`
-- This workflow almost never changes after initial setup
+- Fetches `90day-tracker.html` from GitHub raw URL on every request (auto-deploys on `git push`)
+- Source URL: `https://raw.githubusercontent.com/akinwunmi-akinrimisi/war-plan-90-days/main/90day-tracker.html`
+- Responds via Respond to Webhook node with `Content-Type: text/html` (binary response)
+- Updating the tracker = push to GitHub → next page load picks up the change
 
 **WF10 (Supabase Sync Workflow)**
-- Two routes inside one workflow, branched by HTTP method:
+- Two separate webhooks in one workflow:
   - `GET /webhook/tracker-data?day=X` → reads that day's row from Supabase → returns JSON to the tracker page
   - `POST /webhook/tracker-save` → receives full day payload from Save button → validates PIN → writes to Supabase `daily_log`
 - PIN is validated on every POST — payload must include `{ "pin": "xxxx", ...dayData }`
 - PIN value stored in Supabase `config` table — never hardcoded in the workflow
+- Save uses `PATCH` with raw JSON body (`contentType: "raw"`, `rawContentType: "application/json"`)
 
 **Weekend awareness:**
 - On Sat/Sun, WF01 (Morning Briefing) does NOT fire
@@ -121,24 +128,24 @@ The HTML daily tracker (`90day-tracker.html`) lives in the project root director
 **Tracker flow end-to-end:**
 1. WF01 sends the tracker URL via Telegram each morning at 2:45 AM
 2. Akinwunmi taps the link → browser opens the WF-UI webhook URL
-3. PIN prompt appears → correct PIN unlocks the page
-4. Tracker fires GET to WF10 → today's Supabase data pre-populates all fields
-5. Activities are logged throughout the day (stored in browser memory only until saved)
-6. "Save Day X" fires a single POST to WF10 with the complete day payload
-7. WF10 validates PIN → writes to Supabase → returns confirmation
-8. Tracker shows confirmation toast — data is now live in Supabase
-9. All accountability workflows read from Supabase for real-time context packets
+3. WF-UI fetches latest HTML from GitHub → serves it to the browser
+4. PIN prompt appears → correct PIN unlocks the page
+5. Tracker fires GET to WF10 → today's Supabase data pre-populates all fields
+6. Activities are logged throughout the day (stored in browser memory only until saved)
+7. "Save Day X" fires a single POST to WF10 with the complete day payload
+8. WF10 validates PIN → writes to Supabase → returns confirmation
+9. Tracker shows confirmation toast — data is now live in Supabase
+10. All accountability workflows read from Supabase for real-time context packets
 
-**File path convention:**
-- Server path: `/opt/war-plan-agent/tracker.html`
-- n8n reads path from `TRACKER_HTML_PATH` in `.env` — never hardcoded inside any workflow node
+**Deployment:**
+- Push HTML changes to GitHub `main` branch → WF-UI serves the new version automatically
+- No server file paths, no SSH, no restart needed
 
 **Client deployment checklist:**
-- [ ] Copy `war-plan-agent/` folder to client server
-- [ ] Import `WF-UI.json` and `WF10.json` into their n8n
-- [ ] Set `TRACKER_HTML_PATH` in their `.env`
+- [ ] Fork the GitHub repo or host `90day-tracker.html` at a raw URL
+- [ ] Import `WF-UI.json` into n8n → update the GitHub raw URL in the Fetch node
+- [ ] Import `WF10.json` into n8n → update Supabase URL/key in HTTP Request nodes
 - [ ] Set client PIN in their Supabase `config` table
-- [ ] Update `TRACKER_HTML_PATH` in WF-UI Read Binary File node to match their path
 
 ---
 
@@ -263,6 +270,36 @@ Every Claude call in the system receives this JSON as part of the system/user pr
 **Tone:** Honest and warm — trusted brother, not a harsh critic.
 
 ---
+### 📧 Weekly Lookback Email — Sunday 08:00 AM (WF13)
+**Channel:** Email via Resend → akinolaakinrimisi@gmail.com
+**Subject:** `War Plan · Week [N] Concluded — [Score]% average · $[revenue] earned`
+**Content:**
+- Week number and calendar dates covered (Mon–Fri)
+- Revenue phase + weekly target vs actual earned
+- Day-by-day score grid (D01–D05 of that week with % score per day)
+- Cumulative stats to date: prayer hrs, NT chapters, books read, code hrs, proposals sent, revenue total, videos published
+- Best day of the week (highest score) and lowest day — one honest line on each
+- Running totals vs 90-day targets: books (X/90), videos (X/250), revenue ($X/$100K)
+- One closing scripture for reflection
+**Tone:** Hybrid — honest assessment, faith-grounded, no sugar-coating
+
+---
+
+### 📧 Weekly Preview Email — Saturday 09:00 PM (WF14)
+**Channel:** Email via Resend → akinolaakinrimisi@gmail.com
+**Subject:** `War Plan · Week [N+1] Preview — Phase [X] · $[weekly target]/wk target`
+**Content:**
+- Week number and calendar dates (Mon–Fri of the coming week)
+- Revenue phase + weekly target for the week
+- NT cycle days for each weekday (Day X of 14-day cycle → which books + chapter count)
+- Daily discipline targets (static — prayer 3hrs, NT 1.5hrs, book 1/day, code 3.5hrs, career 6hrs)
+- Phase-specific daily career actions for the week (proposals/calls/delivery targets)
+- YouTube pipeline reminder (3 videos/day target, pipeline must be running before Monday)
+- One motivational scripture + one revenue/business quote to anchor the week
+- Days remaining in the 90-day plan and cumulative progress snapshot
+**Tone:** Coach → forward-looking, urgent, strategic
+
+---
 
 ## 5. Escalation System
 
@@ -343,9 +380,10 @@ Claude never repeats a quote or message pattern within the same week. The `inter
 ```
 war-plan-agent/
 ├── Agent.md                        ← This file (IMMUTABLE)
+├── BUILDER.md                      ← Synta MCP build instructions (not a runtime file)
 ├── skills.md                       ← Capabilities reference
 ├── skills.sh                       ← Environment setup & verification script
-├── 90day-tracker.html              ← Daily tracker UI (served by WF-UI, never embedded in n8n)
+├── 90day-tracker.html              ← Daily tracker UI (served by WF-UI via GitHub, never embedded in n8n)
 ├── 90day-war-plan.html             ← Visual timetable (reference only, not served by n8n)
 ├── .env                            ← Secrets (never commit to version control)
 ├── directives/
@@ -361,7 +399,9 @@ war-plan-agent/
 │   ├── 10_supabase_sync.md
 │   ├── 11_tracker_ui.md
 │   ├── 12_career_reminders.md
-│   └── 13_youtube_checkin.md
+│   ├── 13_youtube_checkin.md
+│   ├── 14_weekly_lookback_email.md
+│   └── 15_weekly_preview_email.md
 └── workflows/
     ├── WF01_morning_briefing.json
     ├── WF02_prayer_reminders.json
@@ -375,54 +415,60 @@ war-plan-agent/
     ├── WF10_supabase_sync.json      ← Handles GET (load) + POST (save) for tracker
     ├── WF11_career_reminders.json
     ├── WF12_youtube_checkin.json
-    └── WF-UI_tracker_ui.json        ← Serves 90day-tracker.html from disk via webhook
+    ├── WF13_weekly_lookback_email.json
+    ├── WF14_weekly_preview_email.json
+    └── WF-UI_tracker_ui.json        ← Serves 90day-tracker.html from GitHub via webhook
 ```
 
 ---
 
 ## 9. Build Phases
 
-### Phase 1 — Infrastructure (Day 1)
-- [ ] Create Supabase project, run schema SQL, verify all 4 tables exist with updated columns
-- [ ] Create Telegram Bot via BotFather, get bot token, get personal chat ID
-- [ ] Create Slack #war-plan channel, set up Incoming Webhook URL
-- [ ] Add all credentials to n8n (Supabase API key, Telegram token, Slack webhook, OpenRouter API key)
-- [ ] Copy `war-plan-agent/` folder to server at `/opt/war-plan-agent/`
-- [ ] Set `TRACKER_HTML_PATH=/opt/war-plan-agent/90day-tracker.html` in `.env`
-- [ ] Run `skills.sh` to verify all environment dependencies and seed Supabase with 90 weekday rows
-- Deliverable: All credentials wired, Supabase tables live with 90-day schema, tracker on server
+### Phase 1 — Infrastructure ✅ DONE
+- [x] Create Supabase project, run schema SQL, verify all 4 tables (daily_log, interactions, escalations, config)
+- [x] Create Telegram Bot via BotFather, get bot token, get personal chat ID (463579738)
+- [x] Create Slack #war-plan channel, set up Incoming Webhook URL
+- [x] Seed config row + 90 weekday rows (Day 1–90, March 2 – July 3, 2026)
+- [x] Push project to GitHub (`akinwunmi-akinrimisi/war-plan-90-days`)
 
-### Phase 2 — Tracker Online (Day 1, continued)
-- [ ] Build WF-UI — Webhook GET → Read Binary File (`90day-tracker.html`) → Respond to Webhook
-- [ ] Build WF10 — Webhook → branch by method → GET route (Supabase read) + POST route (PIN check → Supabase write)
-- [ ] Test full tracker flow: open URL → PIN → data loads → fill in → save → confirm Supabase row updated
-- Deliverable: Tracker live at `n8n.srv1297445.hstgr.cloud/webhook/tracker`, syncing to Supabase
+### Phase 2 — Tracker + All Workflows Deployed ✅ DONE
+- [x] Build WF-UI — Webhook GET → Fetch HTML from GitHub → Respond with binary HTML
+- [x] Build WF10 — GET /tracker-data + POST /tracker-save (PIN validation, Supabase PATCH)
+- [x] Import + activate all 13 workflows on n8n (WF01–WF12 + WF-UI)
+- [x] Fix webhook registration (typeVersion 2.1 + webhookId)
+- [x] Hardcode Supabase credentials in all workflows (n8n server has no $env.* configured)
+- [x] Deploy all updated workflows via n8n API
+- Tracker live at: `https://n8n.srv1297445.hstgr.cloud/webhook/tracker`
 
-### Phase 3 — Core Disciplines (Day 2)
-- [ ] Build and test WF01 (Morning Briefing) — confirm Slack + Telegram delivery + tracker link + revenue phase shown
-- [ ] Build and test WF02 (Prayer Reminders) — confirm all 4 triggers fire, including weekends
-- [ ] Build and test WF05 (Coding Reminders) — confirm all 3 blocks fire Mon–Fri only
-- Deliverable: Morning briefing + prayer + coding reminders live
+### Phase 3 — Validate All Cron Workflows (NEXT)
+- [ ] Trigger-test WF01 (Morning Briefing) — confirm Slack + Telegram delivery + tracker link + revenue phase
+- [ ] Trigger-test WF02 (Prayer Reminders) — confirm all 4 triggers, including weekends
+- [ ] Trigger-test WF05 (Coding Reminders), WF03 (NT Reading), WF04 (Book Reminder)
+- [ ] Trigger-test WF11 (Career Reminders) — phase-aware messages for all 3 career blocks
+- [ ] Trigger-test WF12 (YouTube Check-in) — fires every day including weekends
+- [ ] Trigger-test WF06 (Escalation Engine) — levels 1–4, career-specific escalation
+- [ ] Trigger-test WF07 (Reply Handler) — all reply commands
+- [ ] Trigger-test WF08 (Night Summary) + WF09 (Weekly Report)
+- Deliverable: All 13 workflows validated end-to-end
 
-### Phase 4 — All Disciplines + Career + YouTube (Day 3)
-- [ ] Build WF03 (NT Reading), WF04 (Book Reminder — 1 book/day)
-- [ ] Build WF11 (Career Reminders) — phase-aware messages for all 3 career blocks
-- [ ] Build WF12 (YouTube Check-in) — fires every day including weekends
-- [ ] Build WF06 (Escalation Engine) — test levels 1–4, test career-specific escalation logic
-- [ ] Build WF07 (Reply Handler) — test all reply commands including new career/revenue/YouTube commands
-- Deliverable: All disciplines covered, career + YouTube reminders functional, replies working
+### Phase 4 — Weekly Emails (WF13 + WF14)
+- [ ] Create directive 14 (Weekly Lookback Email) + 15 (Weekly Preview Email)
+- [ ] Build WF13 — Sunday 08:00 AM lookback email via Resend
+- [ ] Build WF14 — Saturday 09:00 PM preview email via Resend
+- [ ] Verify Resend domain + test email delivery
+- Deliverable: Weekly email summaries live
 
-### Phase 5 — Summaries + Weekly Report (Day 4)
-- [ ] Build WF08 (Night Summary) — includes revenue today + running totals
-- [ ] Build WF09 (Weekly Report) — includes weekly revenue vs phase target, video count
-- [ ] End-to-end test: full weekday simulation + full weekend simulation (prayer + YouTube only)
-- Deliverable: Complete system live. Ready for March 2, 2026 (first weekday).
+### Phase 5 — Full System Test
+- [ ] End-to-end weekday simulation (all disciplines fire in sequence)
+- [ ] Weekend simulation (prayer + YouTube only, all others suppressed)
+- [ ] Reply handler: test all commands (done, stats, pep talk, revenue, pause)
+- Deliverable: Complete system validated. Ready for Day 1.
 
 ---
 
 ## Summary
 
-You operate between **a blank weekday at 3 AM** and **a completed, logged, scored day by midnight** — for 90 weekdays across March, April, and May 2026.
+You operate between **a blank weekday at 3 AM** and **a completed, logged, scored day by midnight** — for 90 weekdays from March 2 through July 3, 2026.
 
 Read directives.
 Generate context-aware messages.

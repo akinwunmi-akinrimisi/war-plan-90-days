@@ -81,7 +81,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -102,7 +102,9 @@
       "position": [
         1350,
         300
-      ]
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -331,7 +333,9 @@
       "position": [
         2230,
         450
-      ]
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -356,7 +360,9 @@
       "position": [
         2450,
         500
-      ]
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -381,7 +387,9 @@
       "position": [
         2230,
         650
-      ]
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -410,7 +418,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"workflow\": \"WF07\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"direction\": \"inbound\",\n  \"message_type\": \"reply\",\n  \"task\": \"{{ $('Intent Recognition').first().json.intent }}\",\n  \"ai_generated\": {{ $('Action Handler').first().json.needs_ai }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+        "jsonBody": "={\n  \"day_num\": {{ $(\"Day Counter\").first().json.day_number || 0 }},\n  \"task\": \"{{ $(\"Intent Recognition\").first().json.intent }}\",\n  \"message_type\": \"reply\",\n  \"channel\": \"telegram\",\n  \"content\": {{ JSON.stringify($(\"Action Handler\").first().json.reply_text || \"processed\") }},\n  \"status\": \"received\"\n}"
       },
       "name": "Log Interaction",
       "type": "n8n-nodes-base.httpRequest",
@@ -418,7 +426,9 @@
       "position": [
         2670,
         500
-      ]
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {

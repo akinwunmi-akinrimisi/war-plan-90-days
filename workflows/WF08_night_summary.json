@@ -89,7 +89,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -139,7 +139,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

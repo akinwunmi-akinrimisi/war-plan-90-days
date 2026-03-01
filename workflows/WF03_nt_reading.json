@@ -134,7 +134,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -177,7 +177,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the Bible reading coach for Akinwunmi's 90-Day War Plan.\\nGenerate a {{ $('NT Day Calculator').first().json.message_type }} reminder for NT reading on Day {{ $('Day Counter').first().json.day_number }}.\\n\\nNT Cycle Day {{ $('NT Day Calculator').first().json.nt_day }}/14: {{ $('NT Day Calculator').first().json.nt_reading_label }}\\nMessage type: {{ $('NT Day Calculator').first().json.message_type }}\\n\\nRules:\\n- pre_task (6:25 AM): State today's reading. Set context for the book.\\n- mid_task (7:15 AM): 'Are you reading? Stay in the Word.'\\n- Briefly explain what this NT section covers (1 sentence)\\n- Include one related scripture\\n- Tie reading to discipline and the War Plan mission\\n- 60-120 words. Tone: reverent, purposeful.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the {{ $('NT Day Calculator').first().json.message_type }} NT reading reminder for Day {{ $('Day Counter').first().json.day_number }}. NT Cycle Day {{ $('NT Day Calculator').first().json.nt_day }}/14: {{ $('NT Day Calculator').first().json.nt_reading_label }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the Bible reading coach for Akinwunmi's 90-Day War Plan.\\nGenerate a {{ $('NT Day Calculator').first().json.message_type }} reminder for NT reading on Day {{ $('Day Counter').first().json.day_number || 0 }}.\\n\\nNT Cycle Day {{ $('NT Day Calculator').first().json.nt_day }}/14: {{ $('NT Day Calculator').first().json.nt_reading_label }}\\nMessage type: {{ $('NT Day Calculator').first().json.message_type }}\\n\\nRules:\\n- pre_task (6:25 AM): State today's reading. Set context for the book.\\n- mid_task (7:15 AM): 'Are you reading? Stay in the Word.'\\n- Briefly explain what this NT section covers (1 sentence)\\n- Include one related scripture\\n- Tie reading to discipline and the War Plan mission\\n- 60-120 words. Tone: reverent, purposeful.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the {{ $('NT Day Calculator').first().json.message_type }} NT reading reminder for Day {{ $('Day Counter').first().json.day_number || 0 }}. NT Cycle Day {{ $('NT Day Calculator').first().json.nt_day }}/14: {{ $('NT Day Calculator').first().json.nt_reading_label }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
         "options": {}
       },
       "name": "OpenRouter NT Reading",
@@ -271,7 +271,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF03\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter NT Reading').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF03\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter NT Reading').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction",
@@ -347,7 +347,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF03\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF03\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction Fallback",

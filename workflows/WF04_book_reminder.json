@@ -134,7 +134,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -177,7 +177,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the reading coach for Akinwunmi's 90-Day War Plan.\\nGenerate a book reminder for Day {{ $('Day Counter').first().json.day_number }}.\\n\\nTarget: 50 pages today | Pages logged so far: {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].book_pages || 0 : 0 }}\\nBook: {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].book_title || 'Check your reading list' : 'Check your reading list' }}\\nMessage type: {{ $('Book Reminder').first().json.message_type }}\\nTotal pages read (90-day): {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].pages_total || 0 : 0 }} / 4,500 target\\n\\nRules:\\n- pre_task: Name the book if known, set 50-page target, motivate\\n- post_task: Check progress. If 0 pages: 'You haven't read today.'\\n- Include one quote from a business/self-help author\\n- Tie reading to building the AI agency (Operscale)\\n- 60-120 words. Tone: coach, growth-focused.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the {{ $('Book Reminder').first().json.message_type }} book reminder for Day {{ $('Day Counter').first().json.day_number }}. Target: 50 pages. Pages logged: {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].book_pages || 0 : 0 }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the reading coach for Akinwunmi's 90-Day War Plan.\\nGenerate a book reminder for Day {{ $('Day Counter').first().json.day_number || 0 }}.\\n\\nTarget: 50 pages today | Pages logged so far: {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].book_pages || 0 : 0 }}\\nBook: {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].book_title || 'Check your reading list' : 'Check your reading list' }}\\nMessage type: {{ $('Book Reminder').first().json.message_type }}\\nTotal pages read (90-day): {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].pages_total || 0 : 0 }} / 4,500 target\\n\\nRules:\\n- pre_task: Name the book if known, set 50-page target, motivate\\n- post_task: Check progress. If 0 pages: 'You haven't read today.'\\n- Include one quote from a business/self-help author\\n- Tie reading to building the AI agency (Operscale)\\n- 60-120 words. Tone: coach, growth-focused.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the {{ $('Book Reminder').first().json.message_type }} book reminder for Day {{ $('Day Counter').first().json.day_number || 0 }}. Target: 50 pages. Pages logged: {{ $('Get Daily Log').first().json[0] ? $('Get Daily Log').first().json[0].book_pages || 0 : 0 }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
         "options": {}
       },
       "name": "OpenRouter Book",
@@ -271,7 +271,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF04\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Book').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF04\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Book').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction",
@@ -347,7 +347,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF04\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF04\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction Fallback",

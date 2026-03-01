@@ -130,7 +130,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -185,7 +185,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AI accountability partner for Akinwunmi's 90-Day War Plan.\\nGenerate the Day {{ $('Day Counter').first().json.day_number }} morning briefing (Week {{ $('Day Counter').first().json.week_num }}).\\n\\nToday's NT reading (14-day cycle, Day {{ $json.nt_day }}): {{ $json.nt_reading_label }}\\nRevenue Phase {{ $json.revenue_phase }}: Weekly target ${{ $json.weekly_target }}\\nBook of the day: 50 pages target\\n\\nToday's schedule:\\n- 3:00-4:15 AM: Prayer Session 1\\n- 4:30-6:20 AM: Coding Block 1\\n- 6:30-7:30 AM: NT Reading\\n- 8:00-9:00 AM: Book of the Day\\n- 9:00 AM-12:00 PM: Career Block A (Prospecting)\\n- 12:00-2:00 PM: Career Block B (Portfolio/Follow-ups)\\n- 2:00-5:00 PM: Coding Block 2\\n- 5:00-6:20 PM: Prayer Session 2\\n- 7:30-9:20 PM: Career Block C (YouTube + LinkedIn)\\n- 9:30-11:00 PM: Coding Block 3\\n- 11:15 PM: Night journal\\n\\nRules:\\n- Open with one powerful scripture or faith declaration\\n- State the day number and what's at stake\\n- List NT reading assignment with chapters\\n- Revenue phase context and career focus\\n- Include one quote from: David Goggins, Jocko Willink, Apostle Paul\\n- 150-250 words. Tone: commanding, no-excuses, faith-driven.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the morning briefing for Day {{ $('Day Counter').first().json.day_number }}, Week {{ $('Day Counter').first().json.week_num }} of the 90-Day War Plan. NT Day {{ $json.nt_day }}: {{ $json.nt_reading_label }}. Revenue Phase {{ $json.revenue_phase }}, weekly target ${{ $json.weekly_target }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AI accountability partner for Akinwunmi's 90-Day War Plan.\\nGenerate the Day {{ $('Day Counter').first().json.day_number || 0 }} morning briefing (Week {{ $('Day Counter').first().json.week_num }}).\\n\\nToday's NT reading (14-day cycle, Day {{ $json.nt_day }}): {{ $json.nt_reading_label }}\\nRevenue Phase {{ $json.revenue_phase }}: Weekly target ${{ $json.weekly_target }}\\nBook of the day: 50 pages target\\n\\nToday's schedule:\\n- 3:00-4:15 AM: Prayer Session 1\\n- 4:30-6:20 AM: Coding Block 1\\n- 6:30-7:30 AM: NT Reading\\n- 8:00-9:00 AM: Book of the Day\\n- 9:00 AM-12:00 PM: Career Block A (Prospecting)\\n- 12:00-2:00 PM: Career Block B (Portfolio/Follow-ups)\\n- 2:00-5:00 PM: Coding Block 2\\n- 5:00-6:20 PM: Prayer Session 2\\n- 7:30-9:20 PM: Career Block C (YouTube + LinkedIn)\\n- 9:30-11:00 PM: Coding Block 3\\n- 11:15 PM: Night journal\\n\\nRules:\\n- Open with one powerful scripture or faith declaration\\n- State the day number and what's at stake\\n- List NT reading assignment with chapters\\n- Revenue phase context and career focus\\n- Include one quote from: David Goggins, Jocko Willink, Apostle Paul\\n- 150-250 words. Tone: commanding, no-excuses, faith-driven.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the morning briefing for Day {{ $('Day Counter').first().json.day_number || 0 }}, Week {{ $('Day Counter').first().json.week_num }} of the 90-Day War Plan. NT Day {{ $json.nt_day }}: {{ $json.nt_reading_label }}. Revenue Phase {{ $json.revenue_phase }}, weekly target ${{ $json.weekly_target }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
         "options": {}
       },
       "name": "OpenRouter Morning Briefing",
@@ -305,7 +305,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF01\",\n  \"channel\": \"telegram+slack\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Morning Briefing').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF01\",\n  \"channel\": \"telegram+slack\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Morning Briefing').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction",
@@ -407,7 +407,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF01\",\n  \"channel\": \"telegram+slack\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF01\",\n  \"channel\": \"telegram+slack\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction Fallback",

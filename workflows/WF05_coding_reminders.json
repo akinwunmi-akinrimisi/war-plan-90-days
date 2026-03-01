@@ -137,7 +137,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -179,7 +179,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate a start-of-block reminder for a coding task on Weekday {{ $('Day Counter').first().json.day_number }}.\\n\\nCurrent coding hours logged today: {{ $json[0] ? ($json[0].code_hrs || 0) : 0 }} hrs. Target: 3.5 hrs across 3 blocks.\\n\\n- Block 1 (4:25 AM): 'Deep work window — most powerful hours'\\n- Block 2 (1:55 PM): 'Afternoon blocks separate builders from dreamers'\\n- Block 3 (9:25 PM): 'Final session. Ship something a client will pay for.'\\n- Include one builder/personal dev quote\\n- Tie to Operscale client deliverables, AI automation income\\n- 100–250 words. Tone: competitive, results-driven.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Day {{ $('Day Counter').first().json.day_number }} of 90. Task: {{ $('Determine Block').first().json.task }}. Code hours so far: {{ $json[0] ? ($json[0].code_hrs || 0) : 0 }}. Generate my coding block reminder now.\"\n    }\n  ],\n  \"max_tokens\": 500,\n  \"temperature\": 0.8\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate a start-of-block reminder for a coding task on Weekday {{ $('Day Counter').first().json.day_number || 0 }}.\\n\\nCurrent coding hours logged today: {{ $json[0] ? ($json[0].code_hrs || 0) : 0 }} hrs. Target: 3.5 hrs across 3 blocks.\\n\\n- Block 1 (4:25 AM): 'Deep work window — most powerful hours'\\n- Block 2 (1:55 PM): 'Afternoon blocks separate builders from dreamers'\\n- Block 3 (9:25 PM): 'Final session. Ship something a client will pay for.'\\n- Include one builder/personal dev quote\\n- Tie to Operscale client deliverables, AI automation income\\n- 100–250 words. Tone: competitive, results-driven.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Day {{ $('Day Counter').first().json.day_number || 0 }} of 90. Task: {{ $('Determine Block').first().json.task }}. Code hours so far: {{ $json[0] ? ($json[0].code_hrs || 0) : 0 }}. Generate my coding block reminder now.\"\n    }\n  ],\n  \"max_tokens\": 500,\n  \"temperature\": 0.8\n}",
         "options": {
           "timeout": 30000
         }
@@ -274,7 +274,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"workflow\": \"WF05\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"coding_reminder\",\n  \"task\": \"{{ $('Determine Block').first().json.task }}\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+        "jsonBody": "={\n  \"workflow\": \"WF05\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"coding_reminder\",\n  \"task\": \"{{ $('Determine Block').first().json.task }}\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
       },
       "name": "Log Interaction",
       "type": "n8n-nodes-base.httpRequest",
@@ -348,7 +348,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"workflow\": \"WF05\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"coding_reminder_fallback\",\n  \"task\": \"{{ $('Determine Block').first().json.task }}\",\n  \"ai_generated\": false,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+        "jsonBody": "={\n  \"workflow\": \"WF05\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"coding_reminder_fallback\",\n  \"task\": \"{{ $('Determine Block').first().json.task }}\",\n  \"ai_generated\": false,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
       },
       "name": "Log Interaction Fallback",
       "type": "n8n-nodes-base.httpRequest",

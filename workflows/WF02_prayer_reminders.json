@@ -114,7 +114,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -157,7 +157,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the prayer coach for Akinwunmi's 90-Day War Plan.\\nGenerate a {{ $('Determine Session').first().json.message_type }} message for {{ $('Determine Session').first().json.task }} on Day {{ $('Day Counter').first().json.day_number }}.\\n\\nSession: {{ $('Determine Session').first().json.task }} | Type: {{ $('Determine Session').first().json.message_type }}\\nIs weekend: {{ $('Day Counter').first().json.is_weekend }}\\n\\nRules:\\n- pre_task (Session 1): 'Rise. Pray. War.' Battle language. Psalm 144:1 energy.\\n- post_task (Session 1): Check completion. 'Did you show up?'\\n- pre_task (Session 2): Evening prayer call. Gentler but firm.\\n- post_task (Session 2): Night reflection. Gratitude + tomorrow's battle.\\n- If weekend: keep it brief. 'Weekend warrior. Stay faithful.'\\n- Include one scripture reference per message.\\n- 50-120 words. Tone: faith, fire, reverence.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the {{ $('Determine Session').first().json.message_type }} prayer reminder for {{ $('Determine Session').first().json.task }} on Day {{ $('Day Counter').first().json.day_number }}. Weekend: {{ $('Day Counter').first().json.is_weekend }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the prayer coach for Akinwunmi's 90-Day War Plan.\\nGenerate a {{ $('Determine Session').first().json.message_type }} message for {{ $('Determine Session').first().json.task }} on Day {{ $('Day Counter').first().json.day_number || 0 }}.\\n\\nSession: {{ $('Determine Session').first().json.task }} | Type: {{ $('Determine Session').first().json.message_type }}\\nIs weekend: {{ $('Day Counter').first().json.is_weekend }}\\n\\nRules:\\n- pre_task (Session 1): 'Rise. Pray. War.' Battle language. Psalm 144:1 energy.\\n- post_task (Session 1): Check completion. 'Did you show up?'\\n- pre_task (Session 2): Evening prayer call. Gentler but firm.\\n- post_task (Session 2): Night reflection. Gratitude + tomorrow's battle.\\n- If weekend: keep it brief. 'Weekend warrior. Stay faithful.'\\n- Include one scripture reference per message.\\n- 50-120 words. Tone: faith, fire, reverence.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the {{ $('Determine Session').first().json.message_type }} prayer reminder for {{ $('Determine Session').first().json.task }} on Day {{ $('Day Counter').first().json.day_number || 0 }}. Weekend: {{ $('Day Counter').first().json.is_weekend }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
         "options": {}
       },
       "name": "OpenRouter Prayer",
@@ -251,7 +251,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF02\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Prayer').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF02\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Prayer').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction",
@@ -327,7 +327,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF02\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"workflow\": \"WF02\",\n  \"channel\": \"telegram\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
         "options": {}
       },
       "name": "Log Interaction Fallback",

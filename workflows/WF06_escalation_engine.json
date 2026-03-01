@@ -129,7 +129,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -155,7 +155,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/escalations?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/escalations?day_num=eq.{{ $('Day Counter').first().json.day_number || 0 }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -237,7 +237,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate an escalation message for Akinwunmi's 90-Day War Plan Day {{ $('Day Counter').first().json.day_number }}.\\n\\nRules:\\n- Level 1: Warm nudge. 'Hey, the task window passed. Can you get to it?'\\n- Level 2: Firmer. 'You're falling behind on this task. This matters.'\\n- Level 3: Direct. 'Task not done. This is Day {{ $('Day Counter').first().json.day_number }} of 90. Every day counts.'\\n- Level 4: Full accountability. 'Multiple tasks missed. You said $100K in 90 days. Act like it.'\\n- Keep it short: 50-100 words. One message covering all overdue tasks.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Overdue tasks: {{ JSON.stringify($json.escalations) }}. Total missed: {{ $json.total_missed }}. Max escalation level: {{ Math.max(...$json.escalations.map(e => e.level)) }}. Generate the escalation message now.\"\n    }\n  ],\n  \"max_tokens\": 300,\n  \"temperature\": 0.7\n}",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate an escalation message for Akinwunmi's 90-Day War Plan Day {{ $('Day Counter').first().json.day_number || 0 }}.\\n\\nRules:\\n- Level 1: Warm nudge. 'Hey, the task window passed. Can you get to it?'\\n- Level 2: Firmer. 'You're falling behind on this task. This matters.'\\n- Level 3: Direct. 'Task not done. This is Day {{ $('Day Counter').first().json.day_number || 0 }} of 90. Every day counts.'\\n- Level 4: Full accountability. 'Multiple tasks missed. You said $100K in 90 days. Act like it.'\\n- Keep it short: 50-100 words. One message covering all overdue tasks.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Overdue tasks: {{ JSON.stringify($json.escalations) }}. Total missed: {{ $json.total_missed }}. Max escalation level: {{ Math.max(...$json.escalations.map(e => e.level)) }}. Generate the escalation message now.\"\n    }\n  ],\n  \"max_tokens\": 300,\n  \"temperature\": 0.7\n}",
         "options": {
           "timeout": 30000
         }
@@ -341,7 +341,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"workflow\": \"WF06\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"escalation\",\n  \"task\": \"{{ $('Escalation Logic').first().json.escalations.map(e => e.task).join(', ') }}\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+        "jsonBody": "={\n  \"workflow\": \"WF06\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number || 0 }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"escalation\",\n  \"task\": \"{{ $('Escalation Logic').first().json.escalations.map(e => e.task).join(', ') }}\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
       },
       "name": "Log Interaction",
       "type": "n8n-nodes-base.httpRequest",

@@ -22,5 +22,8 @@ package-lock.json
 *.log
 daily_log_seed.json
 
+# Deployment scripts (contain API keys)
+fix_webhooks.js
+
 # Claude Code
 .claude/

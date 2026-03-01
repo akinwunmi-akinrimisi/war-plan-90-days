@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>90-Day War Tracker · 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #06080b;
+    --panel:   #0c1016;
+    --panel2:  #111820;
+    --border:  rgba(255,255,255,0.07);
+    --prayer:  #ff7043;
+    --bible:   #26d98f;
+    --book:    #b57bee;
+    --code:    #38bdf8;
+    --career:  #f43f5e;
+    --yt:      #ff6b35;
+    --gold:    #f59e0b;
+    --text:    #dce8f5;
+    --muted:   #4a5a6a;
+    --dim:     #1e2a38;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); font-family:'Libre Baskerville',serif; color:var(--text); min-height:100vh; }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    background:var(--panel); border-bottom:1px solid var(--border);
+    padding:14px 24px; display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px; position:sticky; top:0; z-index:100;
+  }
+  .top-bar .logo { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:4px; color:var(--gold); }
+  .top-bar .logo span { color:var(--text); }
+  .top-bar .date-info { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+  .top-bar .overall-pct { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2px; color:var(--gold); }
+  .top-bar .overall-pct span { font-family:'Space Mono',monospace; font-size:8px; color:var(--muted); letter-spacing:2px; margin-left:5px; }
+  .phase-pill {
+    font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1.5px;
+    padding:4px 10px; border-radius:2px; text-transform:uppercase;
+  }
+  .phase-1 { background:rgba(56,189,248,0.12); color:var(--code); }
+  .phase-2 { background:rgba(244,63,94,0.12); color:var(--career); }
+  .phase-3 { background:rgba(245,158,11,0.15); color:var(--gold); }
+
+  /* ── LAYOUT ── */
+  .layout { display:grid; grid-template-columns:220px 1fr; min-height:calc(100vh - 56px); }
+  @media(max-width:760px){ .layout { grid-template-columns:1fr; } }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background:var(--panel); border-right:1px solid var(--border);
+    padding:16px 0; overflow-y:auto; max-height:calc(100vh - 56px);
+    position:sticky; top:56px;
+  }
+  @media(max-width:760px){ .sidebar { position:static; max-height:none; border-right:none; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; padding:10px; gap:3px; } }
+  .sidebar-label { font-family:'Space Mono',monospace; font-size:8px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); padding:0 16px; margin-bottom:6px; }
+  @media(max-width:760px){ .sidebar-label { display:none; } }
+
+  .day-btn {
+    display:flex; align-items:center; width:100%; padding:8px 16px;
+    background:none; border:none; cursor:pointer; gap:8px; text-align:left;
+    border-left:3px solid transparent; transition:background 0.15s,border-color 0.15s;
+  }
+  @media(max-width:760px){ .day-btn { width:auto; padding:5px 8px; border-left:none; border-radius:4px; border-bottom:2px solid transparent; } }
+  .day-btn:hover { background:rgba(255,255,255,0.03); }
+  .day-btn.active { background:rgba(245,158,11,0.07); border-left-color:var(--gold); }
+  .day-btn .dnum { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:1px; color:var(--muted); min-width:30px; transition:color 0.15s; }
+  .day-btn.active .dnum { color:var(--gold); }
+  .day-btn .ddate { font-family:'Space Mono',monospace; font-size:8.5px; color:var(--muted); letter-spacing:0.5px; }
+  .day-btn .dmini { margin-left:auto; display:flex; gap:2px; align-items:center; }
+  @media(max-width:760px){ .day-btn .ddate { display:none; } .day-btn .dmini { display:none; } }
+  .dmini-dot { width:5px; height:5px; border-radius:50%; background:var(--dim); }
+  .dmini-dot.done { background:var(--gold); }
+  .dmini-dot.partial { background:var(--muted); }
+
+  /* ── MAIN ── */
+  .main { padding:24px 28px 60px; overflow-y:auto; }
+  @media(max-width:600px){ .main { padding:14px 14px 60px; } }
+
+  .day-header { margin-bottom:20px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .day-header .dh-left .day-num { font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:0.9; color:var(--gold); letter-spacing:2px; }
+  .day-header .dh-left .day-full { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2.5px; color:var(--muted); text-transform:uppercase; margin-top:4px; }
+  .day-header .dh-right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .day-score { font-family:'Bebas Neue',sans-serif; font-size:30px; line-height:1; }
+  .day-score .dslabel { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); margin-left:5px; }
+
+  /* ── ACTIVITY CARDS ── */
+  .activities { display:flex; flex-direction:column; gap:10px; margin-bottom:24px; }
+  .act-card { background:var(--panel); border-radius:6px; border:1px solid var(--border); overflow:hidden; transition:border-color 0.2s; }
+  .act-card.complete { border-color:rgba(245,158,11,0.25); }
+  .act-card-head { display:flex; align-items:center; padding:13px 16px; gap:12px; cursor:pointer; user-select:none; border-bottom:1px solid var(--border); }
+  .act-card-head:hover { background:rgba(255,255,255,0.02); }
+  .act-icon { font-size:19px; flex-shrink:0; }
+  .act-title { flex:1; font-weight:700; font-size:14px; }
+  .act-subtitle { font-size:10px; font-style:italic; color:var(--muted); margin-top:1px; }
+  .act-badge { font-family:'Space Mono',monospace; font-size:9px; padding:4px 9px; border-radius:2px; white-space:nowrap; }
+  .act-badge.prayer { background:rgba(255,112,67,0.12); color:var(--prayer); }
+  .act-badge.bible  { background:rgba(38,217,143,0.12); color:var(--bible); }
+  .act-badge.book   { background:rgba(181,123,238,0.12); color:var(--book); }
+  .act-badge.code   { background:rgba(56,189,248,0.12); color:var(--code); }
+  .act-badge.career { background:rgba(244,63,94,0.12); color:var(--career); }
+  .act-badge.yt     { background:rgba(255,107,53,0.12); color:var(--yt); }
+  .act-body { padding:14px 16px; display:flex; flex-direction:column; gap:12px; }
+
+  /* ── INPUTS ── */
+  .field-row { display:flex; flex-direction:column; gap:4px; }
+  .field-label { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--muted); }
+  .session-checks { display:flex; gap:8px; flex-wrap:wrap; }
+  .sess-check-btn {
+    display:flex; align-items:center; gap:7px; padding:7px 12px;
+    background:var(--dim); border:1px solid transparent; border-radius:4px;
+    cursor:pointer; font-family:'Libre Baskerville',serif; font-size:12px; color:var(--muted); transition:all 0.2s;
+  }
+  .sess-check-btn:hover { background:rgba(255,255,255,0.05); }
+  .sess-check-btn.done { background:rgba(255,112,67,0.1); border-color:var(--prayer); color:var(--prayer); }
+  .sess-check-btn.done.bible-sess { background:rgba(38,217,143,0.1); border-color:var(--bible); color:var(--bible); }
+  .sess-check-btn.done.career-sess { background:rgba(244,63,94,0.1); border-color:var(--career); color:var(--career); }
+  .sess-check-btn.done.yt-sess { background:rgba(255,107,53,0.1); border-color:var(--yt); color:var(--yt); }
+
+  .range-row { display:flex; align-items:center; gap:12px; }
+  .range-input { flex:1; -webkit-appearance:none; height:4px; border-radius:2px; outline:none; cursor:pointer; background:var(--dim); }
+  .range-input.prayer-range { accent-color:var(--prayer); }
+  .range-input.bible-range  { accent-color:var(--bible); }
+  .range-input.book-range   { accent-color:var(--book); }
+  .range-input.code-range   { accent-color:var(--code); }
+  .range-input.career-range { accent-color:var(--career); }
+  .range-input.yt-range     { accent-color:var(--yt); }
+  .range-val { font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:1px; min-width:56px; text-align:right; color:var(--text); }
+
+  .text-input, .textarea-input {
+    background:var(--dim); border:1px solid var(--border); border-radius:4px;
+    padding:8px 11px; font-family:'Libre Baskerville',serif; font-size:13px; color:var(--text); width:100%;
+    outline:none; transition:border-color 0.2s;
+  }
+  .text-input:focus, .textarea-input:focus { border-color:var(--gold); }
+  .textarea-input { resize:vertical; min-height:56px; }
+
+  .counter-row { display:flex; align-items:center; gap:12px; }
+  .counter-btn {
+    width:32px; height:32px; border-radius:4px; border:1px solid var(--border);
+    background:var(--dim); color:var(--text); font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:all 0.15s; flex-shrink:0;
+  }
+  .counter-btn:hover { background:rgba(255,255,255,0.08); }
+  .counter-val { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:2px; color:var(--text); min-width:40px; text-align:center; }
+  .counter-label { font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); }
+
+  .phase-box {
+    padding:12px 14px; border-radius:4px; margin-bottom:4px;
+    border-left:3px solid;
+  }
+  .phase-box.p1 { background:rgba(56,189,248,0.06); border-color:var(--code); }
+  .phase-box.p2 { background:rgba(244,63,94,0.06); border-color:var(--career); }
+  .phase-box.p3 { background:rgba(245,158,11,0.06); border-color:var(--gold); }
+  .phase-box-title { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+  .phase-box.p1 .phase-box-title { color:var(--code); }
+  .phase-box.p2 .phase-box-title { color:var(--career); }
+  .phase-box.p3 .phase-box-title { color:var(--gold); }
+  .phase-target { font-size:12px; color:var(--muted); line-height:1.6; }
+  .phase-target strong { color:var(--text); font-weight:700; }
+
+  .nt-chapters { display:grid; grid-template-columns:repeat(auto-fill,minmax(80px,1fr)); gap:4px; }
+  .nt-ch-btn {
+    padding:5px 8px; background:var(--dim); border:1px solid transparent; border-radius:3px;
+    cursor:pointer; font-family:'Space Mono',monospace; font-size:8.5px; letter-spacing:0.8px;
+    color:var(--muted); transition:all 0.15s; text-align:center;
+  }
+  .nt-ch-btn:hover { background:rgba(38,217,143,0.1); color:var(--bible); }
+  .nt-ch-btn.read { background:rgba(38,217,143,0.12); border-color:rgba(38,217,143,0.35); color:var(--bible); }
+
+  /* ── PROGRESS BARS ── */
+  .progress-bars { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; }
+  .prog-row { display:flex; align-items:center; gap:10px; }
+  .prog-label { font-family:'Space Mono',monospace; font-size:8px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); min-width:52px; }
+  .prog-bg { flex:1; height:4px; background:var(--dim); border-radius:2px; overflow:hidden; }
+  .prog-fill { height:100%; border-radius:2px; transition:width 0.4s ease; }
+  .prog-pct { font-family:'Space Mono',monospace; font-size:8px; color:var(--muted); min-width:32px; text-align:right; }
+
+  /* ── NOTES / SAVE ── */
+  .notes-section { margin-top:6px; }
+  .notes-label { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+  .save-btn {
+    width:100%; padding:13px; background:var(--gold); border:none; border-radius:4px;
+    font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:4px;
+    color:#000; cursor:pointer; transition:opacity 0.2s,transform 0.1s; margin-top:18px;
+  }
+  .save-btn:hover { opacity:0.88; }
+  .save-btn:active { transform:scale(0.99); }
+
+  /* ── STATS ── */
+  .stats-panel { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:18px 16px; margin-top:24px; }
+  .stats-panel-title { font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:3px; color:var(--muted); margin-bottom:14px; text-transform:uppercase; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; }
+  .stat-box { background:var(--dim); border-radius:4px; padding:10px; text-align:center; }
+  .stat-box .sv { font-family:'Bebas Neue',sans-serif; font-size:24px; line-height:1; }
+  .stat-box .sl { font-family:'Space Mono',monospace; font-size:7.5px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-top:3px; }
+
+  /* ── HEATMAP ── */
+  .heatmap-section { margin-top:24px; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:18px 16px; }
+  .heatmap-title { font-family:'Bebas Neue',sans-serif; font-size:15px; letter-spacing:3px; color:var(--muted); margin-bottom:14px; }
+  .heatmap-grid { display:grid; grid-template-columns:repeat(15,1fr); gap:3px; }
+  @media(max-width:500px){ .heatmap-grid { grid-template-columns:repeat(9,1fr); } }
+  .hm-cell {
+    aspect-ratio:1; border-radius:2px; background:var(--dim); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono',monospace; font-size:7px; color:var(--muted);
+    transition:all 0.15s; border:1px solid transparent;
+  }
+  .hm-cell:hover { border-color:var(--gold); }
+  .hm-cell.active { border-color:var(--gold); background:rgba(245,158,11,0.1); color:var(--gold); }
+  .hm-cell.score-100 { background:#1a3d1a; color:var(--bible); }
+  .hm-cell.score-75  { background:#1a2d10; color:#8adf5a; }
+  .hm-cell.score-50  { background:#2d2000; color:var(--gold); }
+  .hm-cell.score-25  { background:#2d1500; color:var(--prayer); }
+  .hm-cell.score-0   { background:var(--dim); color:var(--muted); }
+
+  /* ── TOAST ── */
+  .toast {
+    position:fixed; bottom:22px; right:22px; background:var(--bible); color:#000;
+    font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px;
+    padding:11px 18px; border-radius:4px; opacity:0; transform:translateY(10px);
+    transition:all 0.3s; pointer-events:none; z-index:999;
+  }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  /* ── PIN OVERLAY ── */
+  .pin-overlay {
+    position:fixed; inset:0; background:rgba(6,8,11,0.97); z-index:9999;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:20px;
+  }
+  .pin-overlay.hidden { display:none; }
+  .pin-title { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:6px; color:var(--gold); }
+  .pin-sub { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); }
+  .pin-input {
+    background:var(--panel); border:1px solid var(--border); border-radius:4px;
+    padding:14px 20px; font-family:'Space Mono',monospace; font-size:22px; letter-spacing:8px;
+    color:var(--text); text-align:center; outline:none; width:180px;
+    transition:border-color 0.2s;
+  }
+  .pin-input:focus { border-color:var(--gold); }
+  .pin-btn {
+    background:var(--gold); border:none; border-radius:4px; padding:12px 32px;
+    font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:4px; color:#000; cursor:pointer;
+  }
+  .pin-error { font-family:'Space Mono',monospace; font-size:10px; color:var(--prayer); letter-spacing:1.5px; height:16px; }
+</style>
+</head>
+<body>
+
+<!-- PIN OVERLAY -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-title">WARTRACKER</div>
+  <div class="pin-sub">ENTER PIN TO CONTINUE</div>
+  <input class="pin-input" type="password" id="pinInput" maxlength="6" placeholder="····" onkeydown="if(event.key==='Enter')checkPin()">
+  <button class="pin-btn" onclick="checkPin()">UNLOCK</button>
+  <div class="pin-error" id="pinError"></div>
+</div>
+
+<div class="top-bar">
+  <div class="logo">90-DAY WAR<span>TRACKER</span></div>
+  <div class="date-info" id="todayLabel">MAR–MAY 2026</div>
+  <div id="phasePill" class="phase-pill phase-1">PHASE 1</div>
+  <div class="overall-pct" id="overallPct">0% <span>COMPLETE</span></div>
+</div>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main" id="main"></div>
+</div>
+
+<div class="toast" id="toast">✓ SAVED</div>
+
+<script>
+// ── PIN ──────────────────────────────────────────────────────────────
+const PIN = '7749'; // change before deployment
+function checkPin() {
+  const val = document.getElementById('pinInput').value;
+  if (val === PIN) {
+    document.getElementById('pinOverlay').classList.add('hidden');
+    initTracker();
+  } else {
+    document.getElementById('pinError').textContent = 'INCORRECT PIN — TRY AGAIN';
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinInput').focus();
+  }
+}
+
+// ── CONSTANTS ───────────────────────────────────────────────────────
+const DAYS = 90;
+const WEEK_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Build array of 90 weekday dates starting from March 1, 2026
+// March 1 2026 = Sunday → first weekday = March 2 (Monday)
+const WEEKDAY_DATES = [];
+(function() {
+  const d = new Date(2026, 2, 1);
+  while (WEEKDAY_DATES.length < 90) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) WEEKDAY_DATES.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+})();
+
+function getWeekdayDate(dayNum) { return WEEKDAY_DATES[dayNum - 1]; }
+
+function getDateLabel(dayNum) {
+  const d = getWeekdayDate(dayNum);
+  if (!d) return '';
+  return `${WEEK_DAYS[(d.getDay()+6)%7]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+function getMonthLabel(dayNum) {
+  const d = getWeekdayDate(dayNum);
+  if (!d) return '';
+  return MONTHS[d.getMonth()].toUpperCase() + ' ' + d.getFullYear();
+}
+
+// Revenue phase based on calendar week from March 2
+function getRevenuePhase(dayNum) {
+  const date = getWeekdayDate(dayNum);
+  if (!date) return 1;
+  const start = new Date(2026, 2, 2); // Monday March 2
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const weekNum = Math.floor((date - start) / msPerWeek) + 1;
+  if (weekNum <= 4) return 1;
+  if (weekNum <= 8) return 2;
+  return 3;
+}
+
+function getWeekNum(dayNum) {
+  const date = getWeekdayDate(dayNum);
+  if (!date) return 1;
+  const start = new Date(2026, 2, 2);
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  return Math.floor((date - start) / msPerWeek) + 1;
+}
+
+// ── NT 14-DAY CYCLE ─────────────────────────────────────────────────
+// 260 NT chapters spread across 14 days (~18-19/day)
+// Some books split across days; key format: "Book-Chapter"
+const NT_14DAY = {
+  1:  [{book:'Matthew',      from:1, to:28}],                                                         // 28ch
+  2:  [{book:'Mark',         from:1, to:16}, {book:'Luke',         from:1,  to:4 }],                  // 20ch
+  3:  [{book:'Luke',         from:5, to:24}],                                                         // 20ch
+  4:  [{book:'John',         from:1, to:21}],                                                         // 21ch
+  5:  [{book:'Acts',         from:1, to:14}],                                                         // 14ch
+  6:  [{book:'Acts',         from:15,to:28}],                                                         // 14ch
+  7:  [{book:'Romans',       from:1, to:16}],                                                         // 16ch
+  8:  [{book:'1 Cor',        from:1, to:16}],                                                         // 16ch
+  9:  [{book:'2 Cor',        from:1, to:13}, {book:'Galatians',    from:1,  to:6 }],                  // 19ch
+  10: [{book:'Ephesians',    from:1, to:6 }, {book:'Philippians',  from:1,  to:4 },
+       {book:'Colossians',   from:1, to:4 }, {book:'1 Thess',      from:1,  to:5 }],                  // 19ch
+  11: [{book:'2 Thess',      from:1, to:3 }, {book:'1 Timothy',    from:1,  to:6 },
+       {book:'2 Timothy',    from:1, to:4 }, {book:'Titus',        from:1,  to:3 },
+       {book:'Philemon',     from:1, to:1 }],                                                          // 17ch
+  12: [{book:'Hebrews',      from:1, to:13}, {book:'James',        from:1,  to:5 }],                  // 18ch
+  13: [{book:'1 Peter',      from:1, to:5 }, {book:'2 Peter',      from:1,  to:3 },
+       {book:'1 John',       from:1, to:5 }, {book:'2 John',       from:1,  to:1 },
+       {book:'3 John',       from:1, to:1 }, {book:'Jude',         from:1,  to:1 }],                  // 16ch
+  14: [{book:'Revelation',   from:1, to:22}]                                                          // 22ch
+};
+
+function getNTDay(dayNum) { return ((dayNum - 1) % 14) + 1; }
+
+function getNTTotalChapters(ntDay) {
+  return NT_14DAY[ntDay].reduce((a,b) => a + (b.to - b.from + 1), 0);
+}
+
+// ── STATE ───────────────────────────────────────────────────────────
+let data = {};
+let currentDay = 1;
+
+function defaultDay() {
+  return {
+    prayer_s1: false, prayer_s2: false, prayer_note: '',
+    nt_chapters_read: [], nt_note: '',
+    book_title: '', book_pages: 0, book_note: '',
+    code_hrs: 0, code_what: '', code_note: '',
+    proposals_sent: 0, revenue_today: 0, career_win: '', career_note: '', career_done: false,
+    videos_published: 0, pipeline_running: false, yt_note: '',
+    day_note: '', saved: false
+  };
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem('wartracker_90day_2026');
+    if (raw) data = JSON.parse(raw);
+  } catch(e) {}
+  for (let i = 1; i <= DAYS; i++) {
+    if (!data[i]) data[i] = defaultDay();
+  }
+}
+
+function saveData() {
+  try { localStorage.setItem('wartracker_90day_2026', JSON.stringify(data)); } catch(e) {}
+}
+
+// ── SCORING ─────────────────────────────────────────────────────────
+// Prayer 25 | NT 20 | Book 15 | Code 20 | Career 15 | Bonus 5 = 100
+function getDayScore(day) {
+  const d = data[day];
+  if (!d) return 0;
+  let score = 0;
+
+  // Prayer: 25pts
+  if (d.prayer_s1 && d.prayer_s2) score += 25;
+  else if (d.prayer_s1 || d.prayer_s2) score += 12;
+
+  // NT: 20pts (proportional to chapters read today)
+  const ntDay = getNTDay(day);
+  const totalCh = getNTTotalChapters(ntDay);
+  const readCh = (d.nt_chapters_read || []).length;
+  score += Math.round((readCh / Math.max(totalCh, 1)) * 20);
+
+  // Book: 15pts (target 50 pages for a core read)
+  score += Math.round(Math.min((d.book_pages || 0) / 50, 1) * 15);
+
+  // Code: 20pts (target 3.5 hrs)
+  score += Math.round(Math.min((d.code_hrs || 0) / 3.5, 1) * 20);
+
+  // Career: 15pts — phase-dependent
+  const phase = getRevenuePhase(day);
+  if (phase === 1) {
+    // Phase 1: 10 proposals target
+    const propScore = Math.min((d.proposals_sent || 0) / 10, 1) * 15;
+    score += Math.round(propScore);
+  } else if (phase === 2) {
+    // Phase 2: 3 qualified proposals + delivery
+    score += Math.round(Math.min((d.proposals_sent || 0) / 3, 1) * 8);
+    if (d.career_done) score += 7;
+  } else {
+    // Phase 3: discovery calls + proposal sent
+    if ((d.proposals_sent || 0) >= 1) score += 8;
+    if (d.career_done) score += 7;
+  }
+
+  // Bonus: 5pts (day reflection written)
+  if (d.day_note && d.day_note.length > 10) score += 5;
+
+  return Math.min(score, 100);
+}
+
+function getOverallPct() {
+  let total = 0;
+  for (let i = 1; i <= DAYS; i++) total += getDayScore(i);
+  return Math.round(total / DAYS);
+}
+
+// ── CUMULATIVE STATS ────────────────────────────────────────────────
+function getCumulativePrayer() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++){ if(data[i].prayer_s1) t+=1.5; if(data[i].prayer_s2) t+=1.5; }
+  return t.toFixed(1);
+}
+function getCumulativeNT() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++) t += (data[i].nt_chapters_read||[]).length;
+  return t;
+}
+function getCumulativePages() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++) t += (data[i].book_pages||0);
+  return t;
+}
+function getCumulativeCode() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++) t += (data[i].code_hrs||0);
+  return t.toFixed(1);
+}
+function getCumulativeRevenue() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++) t += (data[i].revenue_today||0);
+  return t;
+}
+function getCumulativeProposals() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++) t += (data[i].proposals_sent||0);
+  return t;
+}
+function getCumulativeVideos() {
+  let t = 0;
+  for (let i=1;i<=DAYS;i++) t += (data[i].videos_published||0);
+  return t;
+}
+function getCompletedDays() {
+  let c = 0;
+  for (let i=1;i<=DAYS;i++) if(getDayScore(i)>=80) c++;
+  return c;
+}
+
+// ── SIDEBAR ─────────────────────────────────────────────────────────
+function renderSidebar() {
+  const sb = document.getElementById('sidebar');
+  let html = '<div class="sidebar-label">90 WEEKDAYS · MAR–MAY 2026</div>';
+  let lastMonth = '';
+  for (let i = 1; i <= DAYS; i++) {
+    const d = data[i];
+    const score = getDayScore(i);
+    const active = i === currentDay ? ' active' : '';
+    const date = getWeekdayDate(i);
+    const monthLabel = MONTHS[date.getMonth()];
+    if (monthLabel !== lastMonth) {
+      html += `<div class="sidebar-label" style="margin-top:10px;color:rgba(245,158,11,0.5)">${monthLabel.toUpperCase()}</div>`;
+      lastMonth = monthLabel;
+    }
+    const dotClasses = [
+      (d.prayer_s1&&d.prayer_s2)?'done':(d.prayer_s1||d.prayer_s2)?'partial':'',
+      (d.nt_chapters_read?.length>0)?'done':'',
+      (d.book_pages||0)>=20?'done':(d.book_pages||0)>0?'partial':'',
+      (d.code_hrs||0)>=2?'done':(d.code_hrs||0)>0?'partial':'',
+      (d.proposals_sent||0)>0||(d.videos_published||0)>0?'done':'',
+    ];
+    let dots = '';
+    dotClasses.forEach(c => { dots += `<div class="dmini-dot ${c}"></div>`; });
+    html += `
+      <button class="day-btn${active}" onclick="setDay(${i})">
+        <span class="dnum">D${String(i).padStart(2,'0')}</span>
+        <div><div class="ddate">${getDateLabel(i)}</div></div>
+        <div class="dmini">${dots}</div>
+      </button>`;
+  }
+  sb.innerHTML = html;
+}
+
+// ── MAIN CONTENT ────────────────────────────────────────────────────
+function renderMain() {
+  const day = currentDay;
+  const d = data[day];
+  const ntDay = getNTDay(day);
+  const ntBooks = NT_14DAY[ntDay];
+  const totalNTCh = getNTTotalChapters(ntDay);
+  const readNTCh = (d.nt_chapters_read||[]).length;
+  const score = getDayScore(day);
+  const phase = getRevenuePhase(day);
+  const weekNum = getWeekNum(day);
+
+  // NT chapter buttons
+  let ntChButtons = '';
+  ntBooks.forEach(seg => {
+    for (let c = seg.from; c <= seg.to; c++) {
+      const key = `${seg.book}-${c}`;
+      const isRead = (d.nt_chapters_read||[]).includes(key);
+      ntChButtons += `<button class="nt-ch-btn${isRead?' read':''}" onclick="toggleNTChapter('${key}')">${seg.book} ${c}</button>`;
+    }
+  });
+
+  // Progress percentages
+  const pctPrayer = ((d.prayer_s1?50:0)+(d.prayer_s2?50:0));
+  const pctNT = totalNTCh>0 ? Math.round((readNTCh/totalNTCh)*100) : 0;
+  const pctBook = Math.round(Math.min((d.book_pages||0)/50,1)*100);
+  const pctCode = Math.round(Math.min((d.code_hrs||0)/3.5,1)*100);
+  const pctCareer = phase===1
+    ? Math.round(Math.min((d.proposals_sent||0)/10,1)*100)
+    : Math.round(Math.min((d.proposals_sent||0)/(phase===2?3:1),1)*100);
+  const pctYT = Math.round(Math.min((d.videos_published||0)/3,1)*100);
+
+  let scoreColor = score>=80?'#26d98f':score>=50?'#f59e0b':score>=25?'#ff7043':'#4a5a6a';
+
+  // Phase target box
+  const phaseBoxes = {
+    1: `<div class="phase-box p1">
+          <div class="phase-box-title">Phase 1 · Launch Mode · Week ${weekNum}/4 · Target $1K/wk</div>
+          <div class="phase-target">
+            <strong>Daily non-negotiables:</strong> 10 Upwork proposals · 1 skill studied · Build/update portfolio piece<br>
+            Focus: get your first 3 reviews. Price at $500–$1,500. Use Startup HQ & NOPE Fitness as case studies.
+          </div>
+        </div>`,
+    2: `<div class="phase-box p2">
+          <div class="phase-box-title">Phase 2 · Scale Mode · Week ${weekNum}/8 · Target $5K/wk</div>
+          <div class="phase-target">
+            <strong>Daily non-negotiables:</strong> 3 qualified proposals (no low-budget) · 1 follow-up call · 1 deliverable shipped<br>
+            Minimum price: $3K. Start positioning as Operscale AI Agency. Convert one-offs to retainers.
+          </div>
+        </div>`,
+    3: `<div class="phase-box p3">
+          <div class="phase-box-title">Phase 3 · Agency Mode · Week ${weekNum}/12 · Target $20K/wk</div>
+          <div class="phase-target">
+            <strong>Daily non-negotiables:</strong> 2 discovery calls booked · 1 proposal sent ($10K+) · 1 project milestone delivered<br>
+            Target: business owners via LinkedIn + YouTube inbound. Minimum engagement $10K.
+          </div>
+        </div>`
+  };
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <!-- Day Header -->
+    <div class="day-header">
+      <div class="dh-left">
+        <div class="day-num">DAY ${String(day).padStart(2,'0')}</div>
+        <div class="day-full">${getDateLabel(day)} &nbsp;·&nbsp; NT Cycle Day ${ntDay}/14 &nbsp;·&nbsp; Week ${weekNum}</div>
+      </div>
+      <div class="dh-right">
+        <div class="day-score" style="color:${scoreColor}">${score}<span class="dslabel">% SCORE</span></div>
+      </div>
+    </div>
+
+    <!-- Progress Bars -->
+    <div class="progress-bars">
+      <div class="prog-row"><div class="prog-label">🙏 Prayer</div><div class="prog-bg"><div class="prog-fill" style="width:${pctPrayer}%;background:var(--prayer)"></div></div><div class="prog-pct">${pctPrayer}%</div></div>
+      <div class="prog-row"><div class="prog-label">📖 NT</div><div class="prog-bg"><div class="prog-fill" style="width:${pctNT}%;background:var(--bible)"></div></div><div class="prog-pct">${readNTCh}/${totalNTCh}ch</div></div>
+      <div class="prog-row"><div class="prog-label">📚 Book</div><div class="prog-bg"><div class="prog-fill" style="width:${pctBook}%;background:var(--book)"></div></div><div class="prog-pct">${d.book_pages||0}pg</div></div>
+      <div class="prog-row"><div class="prog-label">💻 Code</div><div class="prog-bg"><div class="prog-fill" style="width:${pctCode}%;background:var(--code)"></div></div><div class="prog-pct">${(d.code_hrs||0).toFixed(1)}h</div></div>
+      <div class="prog-row"><div class="prog-label">💼 Career</div><div class="prog-bg"><div class="prog-fill" style="width:${pctCareer}%;background:var(--career)"></div></div><div class="prog-pct">${pctCareer}%</div></div>
+      <div class="prog-row"><div class="prog-label">🎬 YouTube</div><div class="prog-bg"><div class="prog-fill" style="width:${pctYT}%;background:var(--yt)"></div></div><div class="prog-pct">${d.videos_published||0}/3</div></div>
+    </div>
+
+    <div class="activities">
+
+      <!-- ── PRAYER ── -->
+      <div class="act-card${(d.prayer_s1&&d.prayer_s2)?' complete':''}">
+        <div class="act-card-head" onclick="toggleSection('prayer-body')">
+          <span class="act-icon">🙏</span>
+          <div>
+            <div class="act-title">Prayer</div>
+            <div class="act-subtitle">3 hrs total · Session 1: 3:00–4:30 AM · Session 2: 5:00–6:30 PM</div>
+          </div>
+          <span class="act-badge prayer">${d.prayer_s1&&d.prayer_s2?'DONE':d.prayer_s1||d.prayer_s2?'HALF':'TODO'}</span>
+        </div>
+        <div class="act-body" id="prayer-body">
+          <div class="field-row">
+            <div class="field-label">Sessions Completed</div>
+            <div class="session-checks">
+              <button class="sess-check-btn${d.prayer_s1?' done':''}" onclick="toggleField('prayer_s1')">${d.prayer_s1?'✓':''} Session 1 &nbsp;<span style="font-size:9px;opacity:0.6">3:00–4:30 AM</span></button>
+              <button class="sess-check-btn${d.prayer_s2?' done':''}" onclick="toggleField('prayer_s2')">${d.prayer_s2?'✓':''} Session 2 &nbsp;<span style="font-size:9px;opacity:0.6">5:00–6:30 PM</span></button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Key Revelations / Burdens</div>
+            <textarea class="textarea-input" placeholder="What did God speak? Scriptures, insights, intercessions..." oninput="updateField('prayer_note',this.value)">${d.prayer_note||''}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── NT READING ── -->
+      <div class="act-card${pctNT>=100?' complete':''}">
+        <div class="act-card-head" onclick="toggleSection('bible-body')">
+          <span class="act-icon">📖</span>
+          <div>
+            <div class="act-title">New Testament</div>
+            <div class="act-subtitle">Cycle Day ${ntDay}/14 · ${ntBooks.map(b=>b.book+(b.from>1||b.to<(NT_14DAY[ntDay].find(x=>x.book===b.book)||{to:b.to}).to?` ${b.from}–${b.to}`:'')).join(', ')} · ${totalNTCh} chapters</div>
+          </div>
+          <span class="act-badge bible">${readNTCh}/${totalNTCh} CH</span>
+        </div>
+        <div class="act-body" id="bible-body">
+          <div class="field-row">
+            <div class="field-label">Chapters Read (tap to toggle)</div>
+            <div class="nt-chapters">${ntChButtons}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Key Verses / Insights</div>
+            <textarea class="textarea-input" placeholder="Scriptures that stood out, revelation, meditation..." oninput="updateField('nt_note',this.value)">${d.nt_note||''}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── BOOK ── -->
+      <div class="act-card${(d.book_pages||0)>=50?' complete':''}">
+        <div class="act-card-head" onclick="toggleSection('book-body')">
+          <span class="act-icon">📚</span>
+          <div>
+            <div class="act-title">Book of the Day</div>
+            <div class="act-subtitle">Core read — key chapters, highlights, notes · Target: 50 pages · 8:00–9:00 AM + 6:30–7:30 PM</div>
+          </div>
+          <span class="act-badge book">${d.book_pages||0} / 50 PG</span>
+        </div>
+        <div class="act-body" id="book-body">
+          <div class="field-row">
+            <div class="field-label">Book Title (1 per day — finish it today)</div>
+            <input class="text-input" type="text" placeholder="e.g. $100M Offers by Alex Hormozi" value="${d.book_title||''}" oninput="updateField('book_title',this.value)">
+          </div>
+          <div class="field-row">
+            <div class="field-label">Core Pages / Sections Read</div>
+            <div class="range-row">
+              <input type="range" class="range-input book-range" min="0" max="100" value="${d.book_pages||0}" oninput="updateFieldNum('book_pages',this.value);this.nextElementSibling.textContent=this.value+' pg'">
+              <div class="range-val">${d.book_pages||0} pg</div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Top 3 Insights / Application</div>
+            <textarea class="textarea-input" placeholder="What are the big ideas? How will you apply this to Operscale / Cloudboosta?" oninput="updateField('book_note',this.value)">${d.book_note||''}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CODING ── -->
+      <div class="act-card${(d.code_hrs||0)>=3.5?' complete':''}">
+        <div class="act-card-head" onclick="toggleSection('code-body')">
+          <span class="act-icon">💻</span>
+          <div>
+            <div class="act-title">Coding / AI Build</div>
+            <div class="act-subtitle">Target: 3.5 hrs · Blocks: 4:30–6:30 AM, 2:00–3:30 PM, 7:30–9:00 PM, 9:00–11:00 PM</div>
+          </div>
+          <span class="act-badge code">${(d.code_hrs||0).toFixed(1)} / 3.5 HRS</span>
+        </div>
+        <div class="act-body" id="code-body">
+          <div class="field-row">
+            <div class="field-label">Hours Coded</div>
+            <div class="range-row">
+              <input type="range" class="range-input code-range" min="0" max="8" step="0.25" value="${d.code_hrs||0}" oninput="updateFieldNum('code_hrs',parseFloat(this.value));this.nextElementSibling.textContent=parseFloat(this.value).toFixed(1)+'h'">
+              <div class="range-val">${(d.code_hrs||0).toFixed(1)}h</div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">What Did You Build / Learn?</div>
+            <input class="text-input" type="text" placeholder="e.g. n8n automation, API integration, client workflow..." value="${d.code_what||''}" oninput="updateField('code_what',this.value)">
+          </div>
+          <div class="field-row">
+            <div class="field-label">Notes / Blockers</div>
+            <textarea class="textarea-input" placeholder="What worked? What was hard? Continue tomorrow..." oninput="updateField('code_note',this.value)">${d.code_note||''}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CAREER ── -->
+      <div class="act-card${d.career_done?' complete':''}">
+        <div class="act-card-head" onclick="toggleSection('career-body')">
+          <span class="act-icon">💼</span>
+          <div>
+            <div class="act-title">Career — AI Automation</div>
+            <div class="act-subtitle">${phase===1?'Phase 1: Launch · $1K/wk target':phase===2?'Phase 2: Scale · $5K/wk target':'Phase 3: Agency · $20K/wk target'} · Week ${weekNum}</div>
+          </div>
+          <span class="act-badge career">${phase===1?(d.proposals_sent||0)+'/10 PROP':phase===2?(d.proposals_sent||0)+'/3 PROP':(d.proposals_sent||0)+' PROP'}</span>
+        </div>
+        <div class="act-body" id="career-body">
+          ${phaseBoxes[phase]}
+          <div class="field-row">
+            <div class="field-label">Proposals / Outreach Sent Today</div>
+            <div class="counter-row">
+              <button class="counter-btn" onclick="adjustCounter('proposals_sent',-1,0)">−</button>
+              <div class="counter-val" id="proposals-val">${d.proposals_sent||0}</div>
+              <button class="counter-btn" onclick="adjustCounter('proposals_sent',1,50)">+</button>
+              <div class="counter-label">SENT TODAY</div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Revenue Earned Today ($)</div>
+            <input class="text-input" type="number" min="0" step="50" placeholder="0" value="${d.revenue_today||''}" oninput="updateFieldNum('revenue_today',parseFloat(this.value)||0)">
+          </div>
+          <div class="field-row">
+            <div class="field-label">Today's Target Met?</div>
+            <div class="session-checks">
+              <button class="sess-check-btn career-sess${d.career_done?' done':''}" onclick="toggleField('career_done')">${d.career_done?'✓':''} ${phase===1?'10 proposals sent':phase===2?'Deliverable shipped + 3 proposals':'Discovery calls booked'}</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Win / Breakthrough Today</div>
+            <input class="text-input" type="text" placeholder="e.g. Landed first call, closed $500 project, new Upwork review..." value="${d.career_win||''}" oninput="updateField('career_win',this.value)">
+          </div>
+          <div class="field-row">
+            <div class="field-label">Notes / Next Actions</div>
+            <textarea class="textarea-input" placeholder="What moved the needle? What to follow up tomorrow?" oninput="updateField('career_note',this.value)">${d.career_note||''}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── YOUTUBE ── -->
+      <div class="act-card${(d.videos_published||0)>=3?' complete':''}">
+        <div class="act-card-head" onclick="toggleSection('yt-body')">
+          <span class="act-icon">🎬</span>
+          <div>
+            <div class="act-title">YouTube Pipeline</div>
+            <div class="act-subtitle">Vision GridAI · Target: 3 videos/day · Automated production · 250 total goal</div>
+          </div>
+          <span class="act-badge yt">${d.videos_published||0} / 3 TODAY</span>
+        </div>
+        <div class="act-body" id="yt-body">
+          <div class="field-row">
+            <div class="field-label">Videos Published Today</div>
+            <div class="counter-row">
+              <button class="counter-btn" onclick="adjustCounter('videos_published',-1,0)">−</button>
+              <div class="counter-val" id="videos-val">${d.videos_published||0}</div>
+              <button class="counter-btn" onclick="adjustCounter('videos_published',1,20)">+</button>
+              <div class="counter-label">PUBLISHED</div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Pipeline Status</div>
+            <div class="session-checks">
+              <button class="sess-check-btn yt-sess${d.pipeline_running?' done':''}" onclick="toggleField('pipeline_running')">${d.pipeline_running?'✓':''} Pipeline Running Smoothly</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">Notes / Issues / Optimisations</div>
+            <textarea class="textarea-input" placeholder="Pipeline issues, topics queued, channel milestones, optimisations..." oninput="updateField('yt_note',this.value)">${d.yt_note||''}</textarea>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /activities -->
+
+    <!-- Day Reflection -->
+    <div class="notes-section">
+      <div class="notes-label">Day Reflection / Journal</div>
+      <textarea class="textarea-input" style="min-height:72px" placeholder="Overall: wins, struggles, what to do differently tomorrow. What moved you closer to $100K?" oninput="updateField('day_note',this.value)">${d.day_note||''}</textarea>
+    </div>
+
+    <!-- Save -->
+    <button class="save-btn" onclick="saveCurrent()">SAVE DAY ${day}</button>
+
+    <!-- Cumulative Stats -->
+    <div class="stats-panel">
+      <div class="stats-panel-title">90-Day Cumulative Progress</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv" style="color:var(--prayer)">${getCumulativePrayer()}</div><div class="sl">Prayer Hrs</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--bible)">${getCumulativeNT()}</div><div class="sl">NT Chapters</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--book)">${getCumulativePages()}</div><div class="sl">Pages Read</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--code)">${getCumulativeCode()}h</div><div class="sl">Code Hrs</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--career)">$${getCumulativeRevenue().toLocaleString()}</div><div class="sl">Revenue Earned</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--career)">${getCumulativeProposals()}</div><div class="sl">Proposals Sent</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--yt)">${getCumulativeVideos()}</div><div class="sl">Videos Published</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--gold)">${getCompletedDays()}</div><div class="sl">Days 80%+ Done</div></div>
+        <div class="stat-box"><div class="sv" style="color:var(--gold)">${getOverallPct()}%</div><div class="sl">Overall Score</div></div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="heatmap-section">
+      <div class="heatmap-title">90-DAY HEATMAP</div>
+      <div class="heatmap-grid">${renderHeatmap()}</div>
+    </div>
+  `;
+
+  // Update top bar
+  document.getElementById('overallPct').innerHTML = getOverallPct() + '% <span>COMPLETE</span>';
+  document.getElementById('todayLabel').textContent = `${getMonthLabel(day)} · DAY ${day}/90`;
+  const pill = document.getElementById('phasePill');
+  pill.className = `phase-pill phase-${phase}`;
+  pill.textContent = `PHASE ${phase} · $${phase===1?'1K':phase===2?'5K':'20K'}/WK`;
+}
+
+function renderHeatmap() {
+  let html = '';
+  for (let i = 1; i <= DAYS; i++) {
+    const score = getDayScore(i);
+    let cls = 'score-0';
+    if (score >= 80) cls = 'score-100';
+    else if (score >= 60) cls = 'score-75';
+    else if (score >= 40) cls = 'score-50';
+    else if (score >= 10) cls = 'score-25';
+    const active = i === currentDay ? ' active' : '';
+    html += `<div class="hm-cell ${cls}${active}" onclick="setDay(${i})" title="Day ${i}: ${score}%">D${String(i).padStart(2,'0')}</div>`;
+  }
+  return html;
+}
+
+// ── INTERACTIONS ────────────────────────────────────────────────────
+function setDay(day) {
+  currentDay = day;
+  renderSidebar();
+  renderMain();
+  document.getElementById('main').scrollTop = 0;
+  const btn = document.querySelector('.day-btn.active');
+  if (btn) btn.scrollIntoView({block:'nearest'});
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function toggleField(key) {
+  data[currentDay][key] = !data[currentDay][key];
+  autoSave();
+  renderMain();
+  renderSidebar();
+}
+
+function updateField(key, val) { data[currentDay][key] = val; }
+
+function updateFieldNum(key, val) {
+  data[currentDay][key] = parseFloat(val) || 0;
+  autoSave();
+}
+
+function adjustCounter(key, delta, min, max=999) {
+  const cur = data[currentDay][key] || 0;
+  data[currentDay][key] = Math.max(min, Math.min(max, cur + delta));
+  autoSave();
+  renderMain();
+  renderSidebar();
+}
+
+function toggleNTChapter(key) {
+  if (!data[currentDay].nt_chapters_read) data[currentDay].nt_chapters_read = [];
+  const idx = data[currentDay].nt_chapters_read.indexOf(key);
+  if (idx === -1) data[currentDay].nt_chapters_read.push(key);
+  else data[currentDay].nt_chapters_read.splice(idx, 1);
+  autoSave();
+  renderMain();
+  renderSidebar();
+}
+
+let autoSaveTimer = null;
+function autoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => { saveData(); }, 800);
+}
+
+function saveCurrent() {
+  data[currentDay].saved = true;
+  saveData();
+  renderSidebar();
+  renderMain();
+  const toast = document.getElementById('toast');
+  toast.textContent = `✓ DAY ${currentDay} SAVED`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────
+function initTracker() {
+  loadData();
+
+  // Auto-select today's weekday number
+  const now = new Date();
+  const firstDay = new Date(2026, 2, 2); // March 2
+  if (now >= firstDay) {
+    for (let i = 0; i < WEEKDAY_DATES.length; i++) {
+      const wd = WEEKDAY_DATES[i];
+      if (wd.toDateString() === now.toDateString()) { currentDay = i + 1; break; }
+      if (wd <= now) currentDay = i + 1;
+    }
+    currentDay = Math.min(Math.max(currentDay, 1), DAYS);
+  } else {
+    currentDay = 1;
+  }
+
+  renderSidebar();
+  renderMain();
+}
+
+// Show PIN on load
+window.addEventListener('load', () => {
+  document.getElementById('pinInput').focus();
+});
+document.getElementById('pinInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPin();
+});
+</script>
+</body>
+</html>

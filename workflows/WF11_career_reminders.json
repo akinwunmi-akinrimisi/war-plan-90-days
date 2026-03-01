@@ -1,0 +1,283 @@
+{
+  "name": "WF11 — 90-Day War Plan: Career Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "55 8 * * 1-5" },
+            { "field": "cronExpression", "expression": "55 11 * * 1-5" },
+            { "field": "cronExpression", "expression": "25 19 * * 1-5" }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\nreturn [{ json: { day_number: dayNum, week_num: weekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_weekend }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ]
+        }
+      },
+      "name": "Weekend Guard",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[0].active }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Is Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const weekNum = $input.first().json.week_num || $('Day Counter').first().json.week_num || 1;\nlet phase, weeklyTarget, phaseRules;\nif (weekNum <= 4) { phase = 1; weeklyTarget = 1000; phaseRules = 'Volume — 10 proposals/day, accept $200+ gigs, build reviews fast'; }\nelse if (weekNum <= 8) { phase = 2; weeklyTarget = 5000; phaseRules = 'Quality — 3 qualified proposals, $500+ minimum, pitch retainers'; }\nelse { phase = 3; weeklyTarget = 20000; phaseRules = 'Premium — discovery calls, $10K+ proposals, Operscale brand positioning'; }\nreturn [{ json: { ...$('Day Counter').first().json, revenue_phase: phase, weekly_target: weeklyTarget, phase_rules: phaseRules } }];"
+      },
+      "name": "Revenue Phase",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine career block from trigger time\nconst hour = new Date().getHours();\nlet block, blockLabel, message_type;\n\nif (hour < 10) {\n  block = 'career_block_a';\n  blockLabel = 'Block A (Morning)';\n  message_type = 'pre_task';\n} else if (hour < 14) {\n  block = 'career_block_b';\n  blockLabel = 'Block B (Midday)';\n  message_type = 'pre_task';\n} else {\n  block = 'career_block_c';\n  blockLabel = 'Block C (Evening)';\n  message_type = 'pre_task';\n}\n\nreturn [{ json: { ...$input.first().json, task: block, block_label: blockLabel, message_type, tone_mode: 'coach', quote_source: 'business_quote' } }];"
+      },
+      "name": "Determine Block",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions?select=*&order=created_at.desc&limit=7",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Last Interactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-5', max_tokens: 800, messages: [{ role: 'system', content: 'You are the revenue coach for Akinwunmi\\'s 90-Day War Plan.\\nGenerate a career block reminder for ' + $('Determine Block').first().json.task + ' on Weekday ' + $('Day Counter').first().json.day_number + '.\\n\\nRevenue Phase ' + $('Revenue Phase').first().json.revenue_phase + ': Weekly target $' + $('Revenue Phase').first().json.weekly_target + '. Phase rules: ' + $('Revenue Phase').first().json.phase_rules + '.\\nBlock: ' + $('Determine Block').first().json.block_label + '\\n\\nPhase-specific rules:\\n- Phase 1: Volume — 10 proposals/day, accept $200+ gigs, build reviews fast\\n- Phase 2: Quality — 3 qualified proposals, $500+ minimum, pitch retainers\\n- Phase 3: Premium — discovery calls, $10K+ proposals, Operscale brand positioning\\n\\nBlock A: Prospecting. Block B: Portfolio/follow-up. Block C: YouTube + LinkedIn.\\nInclude one sales/agency quote (Hormozi, Cardone, Dan Kennedy, Chris Voss).\\n100-250 words. Tone: urgent, revenue-focused, no excuses.' }, { role: 'user', content: 'Generate the career block reminder.' }] }) }}"
+      },
+      "name": "OpenRouter Career",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 200],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2450, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF11', channel: 'telegram', day_num: $('Day Counter').first().json.day_number, message: $('OpenRouter Career').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const dayNum = $('Day Counter').first().json.day_number;\nconst block = $('Determine Block').first().json.block_label;\nconst phase = $('Revenue Phase').first().json.revenue_phase;\nconst target = $('Revenue Phase').first().json.weekly_target;\nconst msg = `Day ${dayNum}. Career ${block}. Phase ${phase} — $${target}/week. Go sell.`;\nreturn [{ json: { choices: [{ message: { content: msg } }] } }];"
+      },
+      "name": "Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2670, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Telegram Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF11', channel: 'telegram', day_num: $('Day Counter').first().json.day_number, message: $('Fallback').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3110, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
+    "Day Counter": { "main": [[{ "node": "Weekend Guard", "type": "main", "index": 0 }]] },
+    "Weekend Guard": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }], []] },
+    "Read Config": { "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]] },
+    "Is Active?": { "main": [[{ "node": "Revenue Phase", "type": "main", "index": 0 }], []] },
+    "Revenue Phase": { "main": [[{ "node": "Determine Block", "type": "main", "index": 0 }]] },
+    "Determine Block": { "main": [[{ "node": "Get Daily Log", "type": "main", "index": 0 }]] },
+    "Get Daily Log": { "main": [[{ "node": "Get Last Interactions", "type": "main", "index": 0 }]] },
+    "Get Last Interactions": { "main": [[{ "node": "OpenRouter Career", "type": "main", "index": 0 }]] },
+    "OpenRouter Career": { "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]] },
+    "AI Success?": { "main": [[{ "node": "Send Telegram", "type": "main", "index": 0 }], [{ "node": "Fallback", "type": "main", "index": 0 }]] },
+    "Send Telegram": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Fallback": { "main": [[{ "node": "Send Telegram Fallback", "type": "main", "index": 0 }]] },
+    "Send Telegram Fallback": { "main": [[{ "node": "Log Interaction Fallback", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

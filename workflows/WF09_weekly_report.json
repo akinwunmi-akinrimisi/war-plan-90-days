@@ -1,0 +1,265 @@
+{
+  "name": "WF09 — 90-Day War Plan: Weekly Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 22 * * 0" }]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\n// On Sunday dayNum will be null — compute weekNum from last Friday\nlet effectiveWeekNum = weekNum;\nif (!dayNum) {\n  // Find the most recent weekday\n  const yesterday = new Date(now);\n  yesterday.setDate(yesterday.getDate() - 1);\n  const yStr = yesterday.toISOString().split('T')[0];\n  for (let i = 0; i < weekdays.length; i++) {\n    if (weekdays[i].toISOString().split('T')[0] <= yStr) effectiveWeekNum = Math.ceil((i + 1) / 5);\n  }\n}\nreturn [{ json: { day_number: dayNum, week_num: effectiveWeekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[0].active }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Is Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?select=*&order=day_num.desc&limit=5",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Weekly Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const weekNum = $input.first().json.week_num || $('Day Counter').first().json.week_num || 1;\nlet phase, weeklyTarget;\nif (weekNum <= 4) { phase = 1; weeklyTarget = 1000; }\nelse if (weekNum <= 8) { phase = 2; weeklyTarget = 5000; }\nelse { phase = 3; weeklyTarget = 20000; }\nreturn [{ json: { ...$('Day Counter').first().json, revenue_phase: phase, weekly_target: weeklyTarget } }];"
+      },
+      "name": "Revenue Phase",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const logsRaw = $('Get Weekly Logs').first().json;\nconst logs = Array.isArray(logsRaw) ? logsRaw : [logsRaw].filter(Boolean);\nconst prev = $input.first().json;\n\nconst stats = {\n  week_number: prev.week_num,\n  revenue_phase: prev.revenue_phase,\n  weekly_target: prev.weekly_target,\n  days_in_week: logs.length,\n  prayer_sessions: logs.reduce((s, d) => s + (d.prayer_s1?1:0) + (d.prayer_s2?1:0), 0),\n  nt_chapters: logs.reduce((s, d) => s + (Array.isArray(d.nt_chapters_read) ? d.nt_chapters_read.length : 0), 0),\n  book_pages: logs.reduce((s, d) => s + (d.book_pages || 0), 0),\n  code_hrs: logs.reduce((s, d) => s + parseFloat(d.code_hrs || 0), 0),\n  proposals_sent: logs.reduce((s, d) => s + (d.proposals_sent || 0), 0),\n  revenue_earned: logs.reduce((s, d) => s + parseFloat(d.revenue_today || 0), 0),\n  videos_published: logs.reduce((s, d) => s + (d.videos_published || 0), 0),\n  avg_score: logs.length ? Math.round(logs.reduce((s, d) => s + (d.day_score || 0), 0) / logs.length) : 0,\n  perfect_days: logs.filter(d => (d.day_score || 0) >= 90).length\n};\nreturn [{ json: { ...prev, stats } }];"
+      },
+      "name": "Weekly Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?id=eq.1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"week_num\": {{ $json.week_num }}, \"revenue_phase\": {{ $json.revenue_phase }}}"
+      },
+      "name": "Patch Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-5', max_tokens: 800, messages: [{ role: 'system', content: 'Generate Week ' + $('Weekly Stats').first().json.stats.week_number + ' performance report for Akinwunmi\\'s 90-Day War Plan.\\n\\nStats: ' + JSON.stringify($('Weekly Stats').first().json.stats) + '\\nRevenue Phase: ' + $('Weekly Stats').first().json.stats.revenue_phase + ' (target: $' + $('Weekly Stats').first().json.stats.weekly_target + '/wk)\\nRevenue this week: $' + $('Weekly Stats').first().json.stats.revenue_earned + ' (' + ($('Weekly Stats').first().json.stats.weekly_target > 0 ? Math.round(($('Weekly Stats').first().json.stats.revenue_earned / $('Weekly Stats').first().json.stats.weekly_target) * 100) : 0) + '% of target)\\n\\nRules:\\n- Headline: average score + revenue vs target\\n- Break down each discipline\\n- Identify strongest + weakest\\n- Name patterns\\n- Revenue analysis: on track / behind / ahead\\n- 2-3 actionable directives for next week\\n- Include one business quote on compounding/consistency\\n- 400-600 words. Slack Block Kit formatting.' }, { role: 'user', content: 'Generate this week\\'s report.' }] }) }}"
+      },
+      "name": "OpenRouter Weekly Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 200],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2230, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"text\": {{ JSON.stringify($json.choices[0].message.content) }}}"
+      },
+      "name": "Send Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF09', channel: 'slack', day_num: $('Day Counter').first().json.day_number, message: $('OpenRouter Weekly Report').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stats = $('Weekly Stats').first().json.stats;\nconst msg = `Week ${stats.week_number} report. Avg score: ${stats.avg_score}. Revenue: $${stats.revenue_earned}/$${stats.weekly_target}.`;\nreturn [{ json: { choices: [{ message: { content: msg } }] } }];"
+      },
+      "name": "Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"text\": {{ JSON.stringify($json.choices[0].message.content) }}}"
+      },
+      "name": "Send Slack Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF09', channel: 'slack', day_num: $('Day Counter').first().json.day_number, message: $('Fallback').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
+    "Day Counter": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]] },
+    "Read Config": { "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]] },
+    "Is Active?": { "main": [[{ "node": "Get Weekly Logs", "type": "main", "index": 0 }], []] },
+    "Get Weekly Logs": { "main": [[{ "node": "Revenue Phase", "type": "main", "index": 0 }]] },
+    "Revenue Phase": { "main": [[{ "node": "Weekly Stats", "type": "main", "index": 0 }]] },
+    "Weekly Stats": { "main": [[{ "node": "Patch Config", "type": "main", "index": 0 }]] },
+    "Patch Config": { "main": [[{ "node": "OpenRouter Weekly Report", "type": "main", "index": 0 }]] },
+    "OpenRouter Weekly Report": { "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]] },
+    "AI Success?": { "main": [[{ "node": "Send Slack", "type": "main", "index": 0 }], [{ "node": "Fallback", "type": "main", "index": 0 }]] },
+    "Send Slack": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Fallback": { "main": [[{ "node": "Send Slack Fallback", "type": "main", "index": 0 }]] },
+    "Send Slack Fallback": { "main": [[{ "node": "Log Interaction Fallback", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

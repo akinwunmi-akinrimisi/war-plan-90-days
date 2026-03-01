@@ -1,0 +1,332 @@
+{
+  "name": "WF07 — 90-Day War Plan: Reply Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-replies",
+        "responseMode": "responseNode"
+      },
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract message from Telegram update\nconst update = $input.first().json.body;\nconst message = update.message || {};\nconst text = (message.text || '').toLowerCase().trim();\nconst chatId = message.chat?.id?.toString();\nconst userId = message.from?.id?.toString();\n\nreturn [{ json: { text, chat_id: chatId, user_id: userId, raw_text: message.text || '' } }];"
+      },
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intent Recognition — updated for 90-Day War Plan\nconst text = $input.first().json.text;\nconst raw = $input.first().json.raw_text;\nlet intent = 'unknown';\nlet task = null;\nlet meta = {};\n\n// Specific task done\nconst specificMatch = text.match(/^(prayer|bible|book|code|career)\\s+done$/);\n\nif (specificMatch) {\n  intent = 'mark_done_specific';\n  task = specificMatch[1];\n}\nelse if (text.includes('done') || text === '\\u2705') intent = 'mark_done_generic';\nelse if (text.includes('reschedule') || text.includes('move')) intent = 'reschedule';\nelse if (text.includes('pep talk')) intent = 'pep_talk';\nelse if (text.includes('stats') || text.includes('how am i doing')) intent = 'stats';\nelse if (text.includes('skip today')) intent = 'skip_day';\nelse if (text.includes('pause')) intent = 'pause';\nelse if (text.includes('career done')) { intent = 'mark_done_specific'; task = 'career'; }\n\n// Revenue-related intents\nelse if (text.includes('revenue')) { intent = 'revenue'; }\nelse if (text.match(/sent\\s+(\\d+)\\s+proposals?/)) {\n  intent = 'sent_proposals';\n  meta.proposals_count = parseInt(text.match(/sent\\s+(\\d+)\\s+proposals?/)[1]);\n}\nelse if (text.match(/earned\\s+\\$?(\\d+)/)) {\n  intent = 'earned_revenue';\n  meta.amount = parseInt(text.match(/earned\\s+\\$?(\\d+)/)[1]);\n}\nelse if (text.match(/published\\s+(\\d+)\\s+videos?/)) {\n  intent = 'published_videos';\n  meta.video_count = parseInt(text.match(/published\\s+(\\d+)\\s+videos?/)[1]);\n}\n\nreturn [{ json: { ...$input.first().json, intent, task, meta } }];"
+      },
+      "name": "Intent Recognition",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\nreturn [{ json: { ...$input.first().json, day_number: dayNum, week_num: weekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Action Handler — processes ALL intents and generates patch_body, reply_text, needs_ai\nconst intent = $('Intent Recognition').first().json;\nconst dayNum = $('Day Counter').first().json.day_number;\nconst dailyLog = $('Get Daily Log').first().json;\nconst logData = Array.isArray(dailyLog) && dailyLog[0] ? dailyLog[0] : {};\nconst task = intent.task;\nconst meta = intent.meta || {};\n\nconst TASK_MAP = {\n  'prayer': { field: 'prayer_s1', value: true, reply: 'Prayer session marked done.' },\n  'bible': { field: 'nt_chapters_read', value: '[\"completed\"]', reply: 'NT reading marked done.' },\n  'book': { field: 'book_pages', value: 50, reply: 'Book reading logged — 50 pages.' },\n  'code': { field: 'code_hrs', value: 1.2, reply: 'Coding block logged — 1.2 hrs.' },\n  'career': { field: 'career_done', value: true, reply: 'Career tasks marked done.' }\n};\n\nlet patchBody = {};\nlet replyText = '';\nlet needsAi = false;\nlet needsPatch = false;\n\nswitch (intent.intent) {\n  case 'mark_done_specific':\n    if (task && TASK_MAP[task]) {\n      const mapping = TASK_MAP[task];\n      patchBody[mapping.field] = mapping.value;\n      replyText = mapping.reply;\n    } else {\n      replyText = 'Task marked done.';\n    }\n    break;\n\n  case 'mark_done_generic':\n    replyText = 'Noted! Task marked as done.';\n    break;\n\n  case 'sent_proposals':\n    patchBody.proposals_sent = meta.proposals_count || 0;\n    replyText = `Logged ${meta.proposals_count || 0} proposals sent.`;\n    break;\n\n  case 'earned_revenue':\n    patchBody.revenue_today = meta.amount || 0;\n    replyText = `Logged $${meta.amount || 0} revenue. Keep stacking.`;\n    break;\n\n  case 'published_videos':\n    patchBody.videos_published = meta.video_count || 0;\n    replyText = `Logged ${meta.video_count || 0} videos published.`;\n    break;\n\n  case 'pep_talk':\n    needsAi = true;\n    replyText = ''; // Will be filled by AI\n    break;\n\n  case 'stats': {\n    const codeHrs = logData.code_hrs || 0;\n    const prayer1 = logData.prayer_s1 ? 'Done' : 'Pending';\n    const prayer2 = logData.prayer_s2 ? 'Done' : 'Pending';\n    const ntReading = logData.nt_chapters_read ? 'Done' : 'Pending';\n    const bookPages = logData.book_pages || 0;\n    const careerDone = logData.career_done ? 'Done' : 'Pending';\n    const proposals = logData.proposals_sent || 0;\n    const revenue = logData.revenue_today || 0;\n    replyText = `*Day ${dayNum} Stats:*\\n` +\n      `- Prayer S1: ${prayer1}\\n` +\n      `- Prayer S2: ${prayer2}\\n` +\n      `- NT Reading: ${ntReading}\\n` +\n      `- Book Pages: ${bookPages}\\n` +\n      `- Code Hours: ${codeHrs} / 3.5 target\\n` +\n      `- Career: ${careerDone}\\n` +\n      `- Proposals Sent: ${proposals}\\n` +\n      `- Revenue Today: $${revenue}`;\n    break;\n  }\n\n  case 'pause':\n    replyText = 'System paused. Send \"resume\" to reactivate.';\n    break;\n\n  case 'skip_day':\n    replyText = 'Day noted as skipped. Rest if you must, but come back stronger.';\n    break;\n\n  case 'revenue':\n    const rev = logData.revenue_today || 0;\n    const prop = logData.proposals_sent || 0;\n    replyText = `*Revenue Summary — Day ${dayNum}:*\\nRevenue today: $${rev}\\nProposals sent: ${prop}`;\n    break;\n\n  default:\n    replyText = 'I didn\\'t catch that. Try: done, stats, pep talk, revenue, pause, or skip today.';\n    break;\n}\n\nneedsPatch = Object.keys(patchBody).length > 0;\n\nreturn [{ json: {\n  day_num: dayNum,\n  patch_body: patchBody,\n  reply_text: replyText,\n  needs_patch: needsPatch,\n  needs_ai: needsAi,\n  intent: intent.intent\n} }];"
+      },
+      "name": "Action Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needs_ai }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Needs AI?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the 90-Day War Plan accountability coach for Akinwunmi. Give a short, intense pep talk (100-200 words). Reference the $100K revenue goal, the grind, and why quitting is not an option. Be competitive, direct, and inspiring. Include one powerful quote.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Day {{ $('Day Counter').first().json.day_number }} of 90. I need a pep talk. Fire me up.\"\n    }\n  ],\n  \"max_tokens\": 400,\n  \"temperature\": 0.9\n}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "OpenRouter Pep Talk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 200],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2230, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Pep Talk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fallback pep talk when AI fails\nconst dayNum = $('Day Counter').first().json.day_number;\nreturn [{ json: { fallback_text: `Day ${dayNum}. You asked for fire? Here it is: Stop thinking. Start shipping. The $100K doesn't earn itself. Get back to work.` } }];"
+      },
+      "name": "Pep Talk Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 350]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.fallback_text) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Pep Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 350]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Action Handler').first().json.needs_patch }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Has Patch?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2010, 500]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Action Handler').first().json.day_num }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Action Handler').first().json.patch_body) }}"
+      },
+      "name": "Patch Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 450]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($('Action Handler').first().json.reply_text) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Reply to User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($('Action Handler').first().json.reply_text) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Static Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 650]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow\": \"WF07\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"direction\": \"inbound\",\n  \"message_type\": \"reply\",\n  \"task\": \"{{ $('Intent Recognition').first().json.intent }}\",\n  \"ai_generated\": {{ $('Action Handler').first().json.needs_ai }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"ok\"}",
+        "options": { "responseCode": 200 }
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2890, 400]
+    }
+  ],
+  "connections": {
+    "Telegram Webhook": { "main": [[{ "node": "Extract Message", "type": "main", "index": 0 }]] },
+    "Extract Message": { "main": [[{ "node": "Intent Recognition", "type": "main", "index": 0 }]] },
+    "Intent Recognition": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
+    "Day Counter": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]] },
+    "Read Config": { "main": [[{ "node": "Get Daily Log", "type": "main", "index": 0 }]] },
+    "Get Daily Log": { "main": [[{ "node": "Action Handler", "type": "main", "index": 0 }]] },
+    "Action Handler": { "main": [[{ "node": "Needs AI?", "type": "main", "index": 0 }]] },
+    "Needs AI?": {
+      "main": [
+        [{ "node": "OpenRouter Pep Talk", "type": "main", "index": 0 }],
+        [{ "node": "Has Patch?", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenRouter Pep Talk": { "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]] },
+    "AI Success?": {
+      "main": [
+        [{ "node": "Send Pep Talk", "type": "main", "index": 0 }],
+        [{ "node": "Pep Talk Fallback", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Pep Talk": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Pep Talk Fallback": { "main": [[{ "node": "Send Pep Fallback", "type": "main", "index": 0 }]] },
+    "Send Pep Fallback": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Has Patch?": {
+      "main": [
+        [{ "node": "Patch Daily Log", "type": "main", "index": 0 }],
+        [{ "node": "Send Static Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Patch Daily Log": { "main": [[{ "node": "Reply to User", "type": "main", "index": 0 }]] },
+    "Reply to User": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Send Static Reply": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Log Interaction": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

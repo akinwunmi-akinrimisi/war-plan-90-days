@@ -1,0 +1,232 @@
+{
+  "name": "WF12 — 90-Day War Plan: YouTube Check-in",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "30 19 * * *" }]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026 (weekend-aware)\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\nreturn [{ json: { day_number: dayNum, week_num: weekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[0].active }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Is Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const dayData = $('Get Daily Log').first().json;\nconst day = Array.isArray(dayData) ? dayData[0] || {} : dayData || {};\nconst dayCounter = $('Day Counter').first().json;\nconst videosPublished = day.videos_published || 0;\nconst pipelineRunning = day.pipeline_running || false;\nconst target = 3;\n\nreturn [{ json: { ...dayCounter, task: 'youtube_checkin', videos_published: videosPublished, pipeline_running: pipelineRunning, videos_target: target, tone_mode: 'coach_growth' } }];"
+      },
+      "name": "YouTube Progress Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-5', max_tokens: 800, messages: [{ role: 'system', content: 'You are the YouTube growth coach for Akinwunmi\\'s 90-Day War Plan.\\nGenerate a pipeline check-in for Day ' + $('Day Counter').first().json.day_number + '.\\n\\nVideos published today: ' + $('YouTube Progress Check').first().json.videos_published + ' / 3 target\\nPipeline running: ' + $('YouTube Progress Check').first().json.pipeline_running + '\\nChannel: Vision GridAI\\nIs weekend: ' + $('Day Counter').first().json.is_weekend + '\\n\\nRules:\\n- If 3+ videos: celebrate consistency. \"The compound machine is running.\"\\n- If 1-2 videos: nudge. \"Pipeline needs attention. Queue tomorrow\\'s batch now.\"\\n- If 0 videos: urgent. \"Zero output today. Check the pipeline immediately.\"\\n- If is_weekend: keep it brief. Pipeline runs automatically — just verify.\\n- Tie YouTube output to agency social proof (Operscale clients find you through content)\\n- 80-150 words. Tone: strategic, systems-focused.' }, { role: 'user', content: 'Generate the YouTube pipeline check-in.' }] }) }}"
+      },
+      "name": "OpenRouter YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1570, 200],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF12', channel: 'telegram', day_num: $('Day Counter').first().json.day_number, message: $('OpenRouter YouTube').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const vids = $('YouTube Progress Check').first().json.videos_published;\nconst dayNum = $('Day Counter').first().json.day_number;\nlet msg;\nif (vids >= 3) {\n  msg = `Day ${dayNum}: ${vids}/3 videos published. Pipeline running. Keep compounding.`;\n} else if (vids > 0) {\n  msg = `Day ${dayNum}: ${vids}/3 videos published. Pipeline needs attention. Queue tomorrow's batch now.`;\n} else {\n  msg = `Day ${dayNum}: 0/3 videos published. Zero output today. Check the pipeline immediately.`;\n}\nreturn [{ json: { choices: [{ message: { content: msg } }] } }];"
+      },
+      "name": "Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2010, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Telegram Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF12', channel: 'telegram', day_num: $('Day Counter').first().json.day_number, message: $('Fallback').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
+    "Day Counter": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]] },
+    "Read Config": { "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]] },
+    "Is Active?": { "main": [[{ "node": "Get Daily Log", "type": "main", "index": 0 }], []] },
+    "Get Daily Log": { "main": [[{ "node": "YouTube Progress Check", "type": "main", "index": 0 }]] },
+    "YouTube Progress Check": { "main": [[{ "node": "OpenRouter YouTube", "type": "main", "index": 0 }]] },
+    "OpenRouter YouTube": { "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]] },
+    "AI Success?": { "main": [[{ "node": "Send Telegram", "type": "main", "index": 0 }], [{ "node": "Fallback", "type": "main", "index": 0 }]] },
+    "Send Telegram": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Fallback": { "main": [[{ "node": "Send Telegram Fallback", "type": "main", "index": 0 }]] },
+    "Send Telegram Fallback": { "main": [[{ "node": "Log Interaction Fallback", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

@@ -1,0 +1,249 @@
+{
+  "name": "WF06 — 90-Day War Plan: Escalation Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "*/30 3-23 * * 1-5" }]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\nreturn [{ json: { day_number: dayNum, week_num: weekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_weekend }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ]
+        }
+      },
+      "name": "Weekend Guard",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Task Window Checker — updated for 90-Day War Plan schedule\nconst TASK_WINDOWS = [\n  { task: 'prayer_session_1', start: '03:00', end: '04:15' },\n  { task: 'coding_block_1',   start: '04:30', end: '06:20' },\n  { task: 'nt_reading',       start: '06:30', end: '07:30' },\n  { task: 'book_reading',     start: '08:00', end: '09:00' },\n  { task: 'career_block_a',   start: '09:00', end: '11:50' },\n  { task: 'career_block_b',   start: '12:00', end: '13:50' },\n  { task: 'coding_block_2',   start: '14:00', end: '16:50' },\n  { task: 'prayer_session_2', start: '17:00', end: '18:20' },\n  { task: 'career_block_c',   start: '19:30', end: '21:20' },\n  { task: 'coding_block_3',   start: '21:30', end: '23:00' }\n];\n\nconst now = new Date();\nconst currentTime = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');\n\nconst overdueWindows = TASK_WINDOWS.filter(w => currentTime > w.end);\nconst activeWindows = TASK_WINDOWS.filter(w => currentTime >= w.start && currentTime <= w.end);\n\nreturn [{ json: { ...$input.first().json, overdue_tasks: overdueWindows.map(w => w.task), active_tasks: activeWindows.map(w => w.task), current_time: currentTime } }];"
+      },
+      "name": "Task Window Checker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[0].active }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Is Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/escalations?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Escalations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compare overdue tasks against daily_log completions and existing escalations\nconst dayData = $('Get Daily Log').first().json;\nconst prevEscalations = $('Get Escalations').first().json || [];\nconst overdueItems = $('Task Window Checker').first().json.overdue_tasks || [];\nconst config = $('Read Config').first().json;\nconst dayNum = $('Day Counter').first().json.day_number;\n\nconst TASK_FIELD_MAP = {\n  'prayer_session_1': 'prayer_s1',\n  'prayer_session_2': 'prayer_s2',\n  'nt_reading': 'nt_chapters_read',\n  'book_reading': 'book_pages',\n  'coding_block_1': 'code_hrs',\n  'coding_block_2': 'code_hrs',\n  'coding_block_3': 'code_hrs',\n  'career_block_a': 'career_done',\n  'career_block_b': 'career_done',\n  'career_block_c': 'career_done'\n};\n\nconst escalations = [];\nfor (const task of overdueItems) {\n  const field = TASK_FIELD_MAP[task];\n  if (!field) continue;\n  const val = Array.isArray(dayData) && dayData[0] ? dayData[0][field] : null;\n  const isDone = val && (val === true || (Array.isArray(val) && val.length > 0) || (typeof val === 'number' && val > 0));\n  if (isDone) continue;\n  // Check if already escalated at this level\n  const existing = (Array.isArray(prevEscalations) ? prevEscalations : []).filter(e => e.task === task);\n  const maxLevel = existing.length > 0 ? Math.max(...existing.map(e => e.level || 0)) : 0;\n  if (maxLevel < 3) {\n    escalations.push({ task, level: maxLevel + 1, day_num: dayNum });\n  }\n}\n// Count total missed today\nconst totalMissed = escalations.length;\nif (totalMissed >= 3) {\n  escalations.forEach(e => e.level = Math.max(e.level, 4));\n}\n\nreturn [{ json: { escalations, has_escalation: escalations.length > 0, total_missed: totalMissed } }];"
+      },
+      "name": "Escalation Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2010, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_escalation }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Has Escalation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2230, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate an escalation message for Akinwunmi's 90-Day War Plan Day {{ $('Day Counter').first().json.day_number }}.\\n\\nRules:\\n- Level 1: Warm nudge. 'Hey, the task window passed. Can you get to it?'\\n- Level 2: Firmer. 'You're falling behind on this task. This matters.'\\n- Level 3: Direct. 'Task not done. This is Day {{ $('Day Counter').first().json.day_number }} of 90. Every day counts.'\\n- Level 4: Full accountability. 'Multiple tasks missed. You said $100K in 90 days. Act like it.'\\n- Keep it short: 50-100 words. One message covering all overdue tasks.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Overdue tasks: {{ JSON.stringify($json.escalations) }}. Total missed: {{ $json.total_missed }}. Max escalation level: {{ Math.max(...$json.escalations.map(e => e.level)) }}. Generate the escalation message now.\"\n    }\n  ],\n  \"max_tokens\": 300,\n  \"temperature\": 0.7\n}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "OpenRouter Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 100],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": {{ $json.choices && $json.choices.length > 0 ? JSON.stringify($json.choices[0].message.content) : JSON.stringify('Escalation: You have ' + $('Escalation Logic').first().json.total_missed + ' overdue tasks. Get moving.') }},\n  \"parse_mode\": \"Markdown\"\n}"
+      },
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/escalations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Escalation Logic').first().json.escalations.map(e => ({ day_num: e.day_num, task: e.task, level: e.level, created_at: new Date().toISOString() }))) }}"
+      },
+      "name": "Log Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow\": \"WF06\",\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"escalation\",\n  \"task\": \"{{ $('Escalation Logic').first().json.escalations.map(e => e.task).join(', ') }}\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3110, 100]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
+    "Day Counter": { "main": [[{ "node": "Weekend Guard", "type": "main", "index": 0 }]] },
+    "Weekend Guard": { "main": [[{ "node": "Task Window Checker", "type": "main", "index": 0 }], []] },
+    "Task Window Checker": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]] },
+    "Read Config": { "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]] },
+    "Is Active?": { "main": [[{ "node": "Get Daily Log", "type": "main", "index": 0 }], []] },
+    "Get Daily Log": { "main": [[{ "node": "Get Escalations", "type": "main", "index": 0 }]] },
+    "Get Escalations": { "main": [[{ "node": "Escalation Logic", "type": "main", "index": 0 }]] },
+    "Escalation Logic": { "main": [[{ "node": "Has Escalation?", "type": "main", "index": 0 }]] },
+    "Has Escalation?": { "main": [[{ "node": "OpenRouter Escalation", "type": "main", "index": 0 }], []] },
+    "OpenRouter Escalation": { "main": [[{ "node": "Send Telegram", "type": "main", "index": 0 }]] },
+    "Send Telegram": { "main": [[{ "node": "Log Escalation", "type": "main", "index": 0 }]] },
+    "Log Escalation": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

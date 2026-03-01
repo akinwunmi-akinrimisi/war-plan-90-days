@@ -1,0 +1,26 @@
+# Environment secrets
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node (if any local scripts)
+node_modules/
+package-lock.json
+
+# Temp files
+*.tmp
+*.log
+daily_log_seed.json
+
+# Claude Code
+.claude/

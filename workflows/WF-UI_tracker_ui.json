@@ -1,0 +1,58 @@
+{
+  "name": "WF-UI — 90-Day War Plan: Tracker UI",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "tracker",
+        "responseMode": "responseNode"
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve path to 90day-tracker.html\nconst trackerPath = ($env.TRACKER_HTML_PATH || '').replace(/30day-tracker\\.html$/i, '90day-tracker.html') || '90day-tracker.html';\nreturn [{ json: { filePath: trackerPath } }];"
+      },
+      "name": "Resolve Tracker Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.filePath }}"
+      },
+      "name": "Read Tracker HTML",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "text/html; charset=utf-8" },
+              { "name": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+          }
+        }
+      },
+      "name": "Respond with HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Resolve Tracker Path", "type": "main", "index": 0 }]] },
+    "Resolve Tracker Path": { "main": [[{ "node": "Read Tracker HTML", "type": "main", "index": 0 }]] },
+    "Read Tracker HTML": { "main": [[{ "node": "Respond with HTML", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

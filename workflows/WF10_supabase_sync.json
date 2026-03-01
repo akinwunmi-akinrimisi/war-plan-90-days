@@ -1,0 +1,95 @@
+{
+  "name": "WF10 — 90-Day War Plan: Supabase Sync (Tracker Data API)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "tracker-data",
+        "responseMode": "responseNode"
+      },
+      "name": "GET Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tracker-save",
+        "responseMode": "responseNode"
+      },
+      "name": "POST Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $json.query.day }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Day Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "name": "Respond GET",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=tracker_pin&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config PIN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PIN Validation\nconst pin = $input.first().json.body?.pin;\nconst storedPin = $input.first().json.config_pin;\nif (pin !== storedPin) {\n  return [{ json: { valid: false, error: 'Invalid PIN' } }];\n}\nreturn [{ json: { valid: true, body: $input.first().json.body } }];"
+      },
+      "name": "Validate PIN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 500]
+    }
+  ],
+  "connections": {
+    "GET Webhook": { "main": [[{ "node": "Read Day Data", "type": "main", "index": 0 }]] },
+    "Read Day Data": { "main": [[{ "node": "Respond GET", "type": "main", "index": 0 }]] },
+    "POST Webhook": { "main": [[{ "node": "Read Config PIN", "type": "main", "index": 0 }]] },
+    "Read Config PIN": { "main": [[{ "node": "Validate PIN", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

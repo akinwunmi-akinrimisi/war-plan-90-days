@@ -1,0 +1,355 @@
+{
+  "name": "WF01 — 90-Day War Plan: Morning Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "45 2 * * 1-5" }]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\nreturn [{ json: { day_number: dayNum, week_num: weekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_weekend }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ]
+        }
+      },
+      "name": "Weekend Guard",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NT Day Calculator — 14-day cycle with from/to ranges\nconst NT_14DAY = {\n  1: [{book:'Matthew',from:1,to:28}],\n  2: [{book:'Mark',from:1,to:16},{book:'Luke',from:1,to:4}],\n  3: [{book:'Luke',from:5,to:24}],\n  4: [{book:'John',from:1,to:21}],\n  5: [{book:'Acts',from:1,to:14}],\n  6: [{book:'Acts',from:15,to:28}],\n  7: [{book:'Romans',from:1,to:16}],\n  8: [{book:'1 Corinthians',from:1,to:16}],\n  9: [{book:'2 Corinthians',from:1,to:13},{book:'Galatians',from:1,to:6}],\n  10: [{book:'Ephesians',from:1,to:6},{book:'Philippians',from:1,to:4},{book:'Colossians',from:1,to:4},{book:'1 Thessalonians',from:1,to:5}],\n  11: [{book:'2 Thessalonians',from:1,to:3},{book:'1 Timothy',from:1,to:6},{book:'2 Timothy',from:1,to:4},{book:'Titus',from:1,to:3},{book:'Philemon',from:1,to:1}],\n  12: [{book:'Hebrews',from:1,to:13},{book:'James',from:1,to:5}],\n  13: [{book:'1 Peter',from:1,to:5},{book:'2 Peter',from:1,to:3},{book:'1 John',from:1,to:5},{book:'2 John',from:1,to:1},{book:'3 John',from:1,to:1},{book:'Jude',from:1,to:1}],\n  14: [{book:'Revelation',from:1,to:22}]\n};\nconst dayNum = $input.first().json.day_number;\nconst ntDay = ((dayNum - 1) % 14) + 1;\nconst ntBooks = NT_14DAY[ntDay];\nconst readingLabel = ntBooks.map(b => `${b.book} ${b.from}-${b.to}`).join(', ');\nreturn [{ json: { ...$input.first().json, nt_day: ntDay, nt_books: ntBooks, nt_reading_label: readingLabel } }];"
+      },
+      "name": "NT Day Calculator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[0].active }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Is Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Read Config').first().json;\nconst weekNum = $('Day Counter').first().json.week_num;\nfunction getRevenuePhase(wn) {\n  if (wn <= 4) return { phase: 1, weeklyTarget: 1000 };\n  if (wn <= 8) return { phase: 2, weeklyTarget: 5000 };\n  return { phase: 3, weeklyTarget: 20000 };\n}\nconst rp = getRevenuePhase(weekNum);\nconst ntData = $('NT Day Calculator').first().json;\nreturn [{ json: { ...ntData, revenue_phase: rp.phase, weekly_target: rp.weeklyTarget } }];"
+      },
+      "name": "Revenue Phase Calculator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-5\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AI accountability partner for Akinwunmi's 90-Day War Plan.\\nGenerate the Day {{ $('Day Counter').first().json.day_number }} morning briefing (Week {{ $('Day Counter').first().json.week_num }}).\\n\\nToday's NT reading (14-day cycle, Day {{ $json.nt_day }}): {{ $json.nt_reading_label }}\\nRevenue Phase {{ $json.revenue_phase }}: Weekly target ${{ $json.weekly_target }}\\nBook of the day: 50 pages target\\n\\nToday's schedule:\\n- 3:00-4:15 AM: Prayer Session 1\\n- 4:30-6:20 AM: Coding Block 1\\n- 6:30-7:30 AM: NT Reading\\n- 8:00-9:00 AM: Book of the Day\\n- 9:00 AM-12:00 PM: Career Block A (Prospecting)\\n- 12:00-2:00 PM: Career Block B (Portfolio/Follow-ups)\\n- 2:00-5:00 PM: Coding Block 2\\n- 5:00-6:20 PM: Prayer Session 2\\n- 7:30-9:20 PM: Career Block C (YouTube + LinkedIn)\\n- 9:30-11:00 PM: Coding Block 3\\n- 11:15 PM: Night journal\\n\\nRules:\\n- Open with one powerful scripture or faith declaration\\n- State the day number and what's at stake\\n- List NT reading assignment with chapters\\n- Revenue phase context and career focus\\n- Include one quote from: David Goggins, Jocko Willink, Apostle Paul\\n- 150-250 words. Tone: commanding, no-excuses, faith-driven.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the morning briefing for Day {{ $('Day Counter').first().json.day_number }}, Week {{ $('Day Counter').first().json.week_num }} of the 90-Day War Plan. NT Day {{ $json.nt_day }}: {{ $json.nt_reading_label }}. Revenue Phase {{ $json.revenue_phase }}, weekly target ${{ $json.weekly_target }}.\"\n    }\n  ],\n  \"max_tokens\": 500\n}",
+        "options": {}
+      },
+      "name": "OpenRouter Morning Briefing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 200],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices !== undefined && $json.choices.length > 0 }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2230, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": {{ JSON.stringify($json.choices[0].message.content) }},\n  \"parse_mode\": \"Markdown\"\n}",
+        "options": {}
+      },
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{ JSON.stringify($('OpenRouter Morning Briefing').first().json.choices[0].message.content) }}\n}",
+        "options": {}
+      },
+      "name": "Send Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF01\",\n  \"channel\": \"telegram+slack\",\n  \"message_sent\": {{ JSON.stringify($('OpenRouter Morning Briefing').first().json.choices[0].message.content) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fallback: static message when OpenRouter fails\nconst dayNum = $('Day Counter').first().json.day_number;\nconst ntLabel = $('NT Day Calculator').first().json.nt_reading_label;\nconst msg = `Day ${dayNum}. War Plan active. NT: ${ntLabel}. No excuses.`;\nreturn [{ json: { fallback_message: msg } }];"
+      },
+      "name": "Fallback Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 350]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": {{ JSON.stringify($json.fallback_message) }},\n  \"parse_mode\": \"Markdown\"\n}",
+        "options": {}
+      },
+      "name": "Send Telegram Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 350]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }}\n}",
+        "options": {}
+      },
+      "name": "Send Slack Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"day_num\": {{ $('Day Counter').first().json.day_number }},\n  \"workflow\": \"WF01\",\n  \"channel\": \"telegram+slack\",\n  \"message_sent\": {{ JSON.stringify($('Fallback Message').first().json.fallback_message) }},\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "name": "Log Interaction Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]]
+    },
+    "Day Counter": {
+      "main": [[{ "node": "Weekend Guard", "type": "main", "index": 0 }]]
+    },
+    "Weekend Guard": {
+      "main": [
+        [{ "node": "NT Day Calculator", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "NT Day Calculator": {
+      "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]]
+    },
+    "Read Config": {
+      "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]]
+    },
+    "Is Active?": {
+      "main": [
+        [{ "node": "Get Daily Log", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Get Daily Log": {
+      "main": [[{ "node": "Revenue Phase Calculator", "type": "main", "index": 0 }]]
+    },
+    "Revenue Phase Calculator": {
+      "main": [[{ "node": "OpenRouter Morning Briefing", "type": "main", "index": 0 }]]
+    },
+    "OpenRouter Morning Briefing": {
+      "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]]
+    },
+    "AI Success?": {
+      "main": [
+        [{ "node": "Send Telegram", "type": "main", "index": 0 }],
+        [{ "node": "Fallback Message", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        [
+          { "node": "Send Slack", "type": "main", "index": 0 },
+          { "node": "Log Interaction", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fallback Message": {
+      "main": [[{ "node": "Send Telegram Fallback", "type": "main", "index": 0 }]]
+    },
+    "Send Telegram Fallback": {
+      "main": [
+        [
+          { "node": "Send Slack Fallback", "type": "main", "index": 0 },
+          { "node": "Log Interaction Fallback", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }],
+  "meta": { "templateCredsSetupCompleted": true },
+  "pinData": {}
+}

@@ -1,0 +1,305 @@
+{
+  "name": "WF08 — 90-Day War Plan: Night Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "15 23 * * 1-5" }]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Day Counter — weekday-based 90-day counter starting March 2, 2026\nfunction getWeekdayDates() {\n  const dates = [];\n  const d = new Date('2026-03-02T00:00:00+01:00');\n  while (dates.length < 90) {\n    if (d.getDay() !== 0 && d.getDay() !== 6) dates.push(new Date(d));\n    d.setDate(d.getDate() + 1);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toISOString().split('T')[0];\nlet dayNum = null;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i].toISOString().split('T')[0] === todayStr) { dayNum = i + 1; break; }\n}\nconst isWeekend = now.getDay() === 0 || now.getDay() === 6;\nconst weekNum = dayNum ? Math.ceil(dayNum / 5) : null;\nreturn [{ json: { day_number: dayNum, week_num: weekNum, is_weekend: isWeekend, date: todayStr } }];"
+      },
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[0].active }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "name": "Is Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+          ]
+        }
+      },
+      "name": "Get Daily Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Score Calculator — 90-Day War Plan weights\n// Prayer 25, NT 20, Book 15, Coding 20, Career 15, Journal 5 = 100\nconst dayData = $('Get Daily Log').first().json;\nconst day = Array.isArray(dayData) ? dayData[0] || {} : dayData || {};\nconst dayCounter = $('Day Counter').first().json;\n\nlet score = 0;\n\n// Prayer: 25 pts\nconst prayerDone = (day.prayer_s1 ? 1 : 0) + (day.prayer_s2 ? 1 : 0);\nif (prayerDone === 2) score += 25;\nelse if (prayerDone === 1) score += 12;\n\n// NT Reading: 20 pts\nconst chaptersRead = Array.isArray(day.nt_chapters_read) ? day.nt_chapters_read.length : 0;\nconst totalAssigned = 20;\nscore += Math.min(20, Math.round((chaptersRead / totalAssigned) * 20));\n\n// Book: 15 pts (50 pages target)\nconst bookPages = day.book_pages || 0;\nscore += Math.min(15, Math.round((bookPages / 50) * 15));\n\n// Coding: 20 pts (3.5 hrs target)\nconst codeHrs = parseFloat(day.code_hrs || 0);\nscore += Math.min(20, Math.round((codeHrs / 3.5) * 20));\n\n// Career: 15 pts\nconst careerDone = day.career_done ? 15 : 0;\nscore += careerDone;\n\n// Journal: 5 pts\nif (day.day_note && day.day_note.length > 10) score += 5;\n\nconst completed = [];\nconst missed = [];\nif (day.prayer_s1) completed.push('Prayer S1'); else missed.push('Prayer S1');\nif (day.prayer_s2) completed.push('Prayer S2'); else missed.push('Prayer S2');\nif (chaptersRead > 0) completed.push('NT Reading'); else missed.push('NT Reading');\nif (bookPages > 0) completed.push('Book (' + bookPages + 'p)'); else missed.push('Book Reading');\nif (codeHrs > 0) completed.push('Coding (' + codeHrs + 'h)'); else missed.push('Coding');\nif (day.career_done) completed.push('Career'); else missed.push('Career');\nif (day.day_note && day.day_note.length > 10) completed.push('Journal'); else missed.push('Journal');\n\nreturn [{ json: { ...dayCounter, day_score: Math.min(score, 100), completed_tasks: completed, missed_tasks: missed, daily_log: day } }];"
+      },
+      "name": "Score Calculator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const weekNum = $('Day Counter').first().json.week_num || 1;\nfunction getRevenuePhase(wn) {\n  if (wn <= 4) return { phase: 1, weeklyTarget: 1000 };\n  if (wn <= 8) return { phase: 2, weeklyTarget: 5000 };\n  return { phase: 3, weeklyTarget: 20000 };\n}\nconst rp = getRevenuePhase(weekNum);\nconst prev = $input.first().json;\nreturn [{ json: { ...prev, revenue_phase: rp.phase, weekly_target: rp.weeklyTarget } }];"
+      },
+      "name": "Revenue Phase",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"day_score\": {{ $json.day_score }}}"
+      },
+      "name": "Patch Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-5', max_tokens: 800, messages: [{ role: 'system', content: 'Generate night summary for Weekday ' + $('Day Counter').first().json.day_number + ' (Week ' + $('Day Counter').first().json.week_num + ').\\n\\nScore: ' + $('Score Calculator').first().json.day_score + '/100\\nCompleted: ' + $('Score Calculator').first().json.completed_tasks.join(', ') + '\\nMissed: ' + $('Score Calculator').first().json.missed_tasks.join(', ') + '\\nPrayer: ' + ($('Score Calculator').first().json.daily_log.prayer_s1 ? 'S1 done' : 'S1 missed') + ', ' + ($('Score Calculator').first().json.daily_log.prayer_s2 ? 'S2 done' : 'S2 missed') + '. NT: ' + (Array.isArray($('Score Calculator').first().json.daily_log.nt_chapters_read) ? $('Score Calculator').first().json.daily_log.nt_chapters_read.length : 0) + '/20. Book: ' + ($('Score Calculator').first().json.daily_log.book_pages || 0) + 'p.\\nCode: ' + ($('Score Calculator').first().json.daily_log.code_hrs || 0) + 'h. Proposals: ' + ($('Score Calculator').first().json.daily_log.proposals_sent || 0) + '. Revenue: $' + ($('Score Calculator').first().json.daily_log.revenue_today || 0) + '.\\nVideos: ' + ($('Score Calculator').first().json.daily_log.videos_published || 0) + '. Career: ' + ($('Score Calculator').first().json.daily_log.career_done ? 'done' : 'missed') + '.\\n\\nRevenue Phase ' + $('Revenue Phase').first().json.revenue_phase + ': target $' + $('Revenue Phase').first().json.weekly_target + '/week.\\n\\nRules:\\n- Open with score — bold and clear\\n- Name every completed task with affirmation\\n- Name every missed task honestly\\n- Revenue progress vs weekly target\\n- One-sentence honest assessment\\n- Close with scripture or quote\\n- Score >= 80: celebrate. 50-79: acknowledge effort. <50: compassionate but real.\\n- 300-500 words. Max 4096 chars.' }, { role: 'user', content: 'Generate tonight\\'s summary.' }] }) }}"
+      },
+      "name": "OpenRouter Night Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 200],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2230, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"text\": {{ JSON.stringify($json.choices[0].message.content) }}}"
+      },
+      "name": "Send Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF08', channel: 'telegram+slack', day_num: $('Day Counter').first().json.day_number, message: $('OpenRouter Night Summary').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sc = $('Score Calculator').first().json;\nconst dayNum = $('Day Counter').first().json.day_number;\nconst score = sc.day_score;\nconst completedCount = sc.completed_tasks.length;\nconst missedCount = sc.missed_tasks.length;\nconst msg = `Day ${dayNum} score: ${score}/100. ${completedCount} done, ${missedCount} missed. Tomorrow we go again.`;\nreturn [{ json: { choices: [{ message: { content: msg } }] } }];"
+      },
+      "name": "Fallback Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+      },
+      "name": "Send Telegram Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2670, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={\"text\": {{ JSON.stringify($json.choices[0].message.content) }}}"
+      },
+      "name": "Send Slack Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2890, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ JSON.stringify({ workflow: 'WF08', channel: 'telegram+slack', day_num: $('Day Counter').first().json.day_number, message: $('Fallback Message').first().json.choices[0].message.content }) }}"
+      },
+      "name": "Log Interaction Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3110, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] },
+    "Day Counter": { "main": [[{ "node": "Read Config", "type": "main", "index": 0 }]] },
+    "Read Config": { "main": [[{ "node": "Is Active?", "type": "main", "index": 0 }]] },
+    "Is Active?": { "main": [[{ "node": "Get Daily Log", "type": "main", "index": 0 }], []] },
+    "Get Daily Log": { "main": [[{ "node": "Score Calculator", "type": "main", "index": 0 }]] },
+    "Score Calculator": { "main": [[{ "node": "Revenue Phase", "type": "main", "index": 0 }]] },
+    "Revenue Phase": { "main": [[{ "node": "Patch Score", "type": "main", "index": 0 }]] },
+    "Patch Score": { "main": [[{ "node": "OpenRouter Night Summary", "type": "main", "index": 0 }]] },
+    "OpenRouter Night Summary": { "main": [[{ "node": "AI Success?", "type": "main", "index": 0 }]] },
+    "AI Success?": { "main": [[{ "node": "Send Telegram", "type": "main", "index": 0 }], [{ "node": "Fallback Message", "type": "main", "index": 0 }]] },
+    "Send Telegram": { "main": [[{ "node": "Send Slack", "type": "main", "index": 0 }]] },
+    "Send Slack": { "main": [[{ "node": "Log Interaction", "type": "main", "index": 0 }]] },
+    "Fallback Message": { "main": [[{ "node": "Send Telegram Fallback", "type": "main", "index": 0 }]] },
+    "Send Telegram Fallback": { "main": [[{ "node": "Send Slack Fallback", "type": "main", "index": 0 }]] },
+    "Send Slack Fallback": { "main": [[{ "node": "Log Interaction Fallback", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
+  "tags": [{ "name": "war-plan" }]
+}

@@ -3,23 +3,525 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [{ "triggerAtHour": 21, "triggerAtMinute": 0 }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * 6"
+            }
+          ]
+        }
       },
-      "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
-      "position": [250, 300]
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Day Counter — calculate next week's number and date range\nconst config = { start_date: '2026-03-02' };\nconst start = new Date(config.start_date + 'T00:00:00+01:00');\nconst now = new Date();\nconst diffDays = Math.floor((now - start) / 86400000);\nconst currentWeek = Math.ceil((diffDays + 1) / 7);\nconst nextWeek = currentWeek + 1;\n\n// Get Mon-Fri of NEXT week\nconst daysUntilMonday = (8 - now.getDay()) % 7 || 7;\nconst monday = new Date(now);\nmonday.setDate(now.getDate() + daysUntilMonday);\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nreturn [{ json: { weekNum: nextWeek, mondayDate: monday.toISOString().split('T')[0], fridayDate: friday.toISOString().split('T')[0] } }];"
+        "jsCode": "// Day Counter — calculate NEXT week's number and date range\nfunction getWeekdayDates() {\n  const dates = [];\n  let d = new Date(Date.UTC(2026, 2, 2));\n  while (dates.length < 90) {\n    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) dates.push(d.toISOString().split('T')[0]);\n    d = new Date(d.getTime() + 86400000);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });\n\n// Saturday evening: next Monday is 2 days away\n// Find the next weekday date > todayStr\nlet nextWeekdayIdx = -1;\nfor (let i = 0; i < weekdays.length; i++) {\n  if (weekdays[i] > todayStr) { nextWeekdayIdx = i; break; }\n}\n\nif (nextWeekdayIdx < 0) nextWeekdayIdx = weekdays.length - 1;\nconst nextWeekNum = Math.ceil((nextWeekdayIdx + 1) / 5);\nconst weekStartIdx = (nextWeekNum - 1) * 5;\nconst weekEndIdx = Math.min(nextWeekNum * 5 - 1, weekdays.length - 1);\nconst mondayDate = weekdays[weekStartIdx];\nconst fridayDate = weekdays[weekEndIdx];\nconst startDayNum = weekStartIdx + 1;\nconst endDayNum = weekEndIdx + 1;\n\n// NT cycle assignments for each day of the coming week\nconst NT_14DAY = {\n  1: 'Matthew 1-14', 2: 'Matthew 15-28', 3: 'Mark 1-8',\n  4: 'Mark 9-16', 5: 'Luke 1-12', 6: 'Luke 13-24',\n  7: 'John 1-11', 8: 'John 12-21', 9: 'Acts 1-14',\n  10: 'Acts 15-28', 11: 'Romans + 1 Corinthians', 12: '2 Corinthians + Galatians + Ephesians',\n  13: 'Philippians through Hebrews', 14: 'James through Revelation'\n};\n\nconst ntAssignments = [];\nfor (let i = weekStartIdx; i <= weekEndIdx && i < weekdays.length; i++) {\n  const dayNum = i + 1;\n  const ntDay = ((dayNum - 1) % 14) + 1;\n  ntAssignments.push({ day_num: dayNum, date: weekdays[i], nt_day: ntDay, reading: NT_14DAY[ntDay] });\n}\n\n// Days remaining in 90-day plan\nconst daysRemaining = 90 - endDayNum;\n\nreturn [{ json: {\n  week_num: nextWeekNum, monday_date: mondayDate, friday_date: fridayDate,\n  start_day_num: startDayNum, end_day_num: endDayNum,\n  nt_assignments: ntAssignments, days_remaining: daysRemaining, date: todayStr\n} }];"
       },
-      "name": "Day Counter", "type": "n8n-nodes-base.code", "typeVersion": 2,
-      "position": [470, 300]
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        690,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=lte.{{ $('Day Counter').first().json.start_day_num }}&select=revenue_today,proposals_sent,videos_published,book_pages,code_hrs,nt_chapters_read&order=day_num.asc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            }
+          ]
+        }
+      },
+      "name": "Get Cumulative Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        910,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Phase Targets — revenue phase and career actions for next week\nconst dayCounter = $('Day Counter').first().json;\nconst logs = $('Get Cumulative Stats').all().map(i => i.json);\nconst allLogs = logs.length > 0 && Array.isArray(logs[0]) ? logs[0] : logs;\n\nlet totalRevenue = 0, totalProposals = 0, totalVideos = 0;\nlet totalBookPages = 0, totalCodeHrs = 0, totalNtChapters = 0;\nfor (const log of allLogs) {\n  if (!log) continue;\n  totalRevenue += (log.revenue_today || 0);\n  totalProposals += (log.proposals_sent || 0);\n  totalVideos += (log.videos_published || 0);\n  totalBookPages += (log.book_pages || 0);\n  totalCodeHrs += (log.code_hrs || 0);\n  totalNtChapters += (log.nt_chapters_read || 0);\n}\n\nconst weekNum = dayCounter.week_num;\nlet phase = 1, weeklyTarget = 1000, careerActions = '';\nif (weekNum >= 9) {\n  phase = 3; weeklyTarget = 20000;\n  careerActions = 'Phase 3: Scale mode. Focus on delivery, client management, and high-ticket proposals. Target 3+ active contracts. Ship, invoice, collect.';\n} else if (weekNum >= 5) {\n  phase = 2; weeklyTarget = 5000;\n  careerActions = 'Phase 2: Conversion mode. Follow up on all open proposals. Send 3-5 new proposals daily. Close at least 2 deals this week. Revenue must accelerate.';\n} else {\n  careerActions = 'Phase 1: Pipeline mode. Send 5+ proposals daily. Cold outreach on LinkedIn/Upwork. Build portfolio pieces. Revenue target is $1K/wk — every dollar counts.';\n}\n\nconst ntSchedule = dayCounter.nt_assignments.map(a =>\n  'Day ' + a.day_num + ' (' + a.date + '): NT Day ' + a.nt_day + ' — ' + a.reading\n).join('\\n');\n\nconst dateRange = dayCounter.monday_date + ' to ' + dayCounter.friday_date;\nconst subject = 'War Plan · Week ' + weekNum + ' Preview — Phase ' + phase + ' · $' + weeklyTarget.toLocaleString() + '/wk target';\n\nreturn [{ json: {\n  week_num: weekNum, date_range: dateRange, phase, weekly_target: weeklyTarget,\n  career_actions: careerActions, nt_schedule: ntSchedule,\n  nt_assignments: dayCounter.nt_assignments,\n  total_revenue: totalRevenue, total_proposals: totalProposals,\n  total_videos: totalVideos, total_book_pages: totalBookPages,\n  total_code_hrs: Math.round(totalCodeHrs * 10) / 10,\n  days_remaining: dayCounter.days_remaining, subject\n} }];"
+      },
+      "name": "Phase Targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1130,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer __OPENROUTER_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate the HTML body for a weekly preview email for Akinwunmi's 90-Day War Plan.\\n\\nRules:\\n- Write as a strategic coach preparing a soldier for the week\\n- Open with a forward-looking scripture or quote\\n- Be specific about NT assignments (name the books)\\n- Tie career actions to the revenue phase target\\n- Include YouTube pipeline reminder (3 videos/day target)\\n- Close with urgency — every week counts in a 90-day run\\n- Output clean HTML fragments (no <html>/<head>/<body> tags)\\n- Use inline styles only. Colors: prayer=#f59e0b, NT=#22c55e, book=#a855f7, code=#3b82f6, career=#ef4444, YouTube=#ea580c\\n- Font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\\n- Text color: #e2e8f0 on dark background #07090c\\n- Include a table for the NT reading schedule\\n- 300-500 words\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Coming week: {{ $json.week_num }} ({{ $json.date_range }})\\nRevenue Phase: {{ $json.phase }} (target: ${{ $json.weekly_target }}/wk)\\nCumulative revenue: ${{ $json.total_revenue }} of $100K goal\\nDays remaining: {{ $json.days_remaining }} of 90\\n\\nNT reading schedule:\\n{{ $json.nt_schedule }}\\n\\nPhase {{ $json.phase }} career actions:\\n{{ $json.career_actions }}\\n\\nCumulative: {{ $json.total_proposals }} proposals, {{ $json.total_videos }} videos, {{ $json.total_book_pages }} pages, {{ $json.total_code_hrs }} code hrs\"\n    }\n  ],\n  \"max_tokens\": 1500,\n  \"temperature\": 0.7\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "OpenRouter Preview",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1350,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1570,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HTML Email — wrap Claude output in styled email template\nconst stats = $('Phase Targets').first().json;\nconst aiContent = $('OpenRouter Preview').first().json.choices[0].message.content;\nconst font = \"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\";\n\nconst html = '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>' +\n'<body style=\"margin:0;padding:0;background-color:#07090c;font-family:' + font + ';\">' +\n'<table role=\"presentation\" width=\"100%\" style=\"max-width:600px;margin:0 auto;background-color:#07090c;\">' +\n'<tr><td style=\"padding:30px 20px;\">' +\n'<div style=\"text-align:center;padding:20px 0;border-bottom:2px solid #1a1f2e;\">' +\n'<h1 style=\"color:#e2e8f0;font-size:24px;margin:0;\">⚔️ War Plan · Week ' + stats.week_num + ' Preview</h1>' +\n'<p style=\"color:#94a3b8;font-size:14px;margin:8px 0 0;\">' + stats.date_range + '</p>' +\n'<p style=\"color:#f59e0b;font-size:16px;margin:8px 0 0;\">Phase ' + stats.phase + ' · Target: $' + stats.weekly_target.toLocaleString() + '/wk · ' + stats.days_remaining + ' days remaining</p>' +\n'</div>' +\n'<div style=\"padding:20px 0;color:#e2e8f0;font-size:14px;line-height:1.6;\">' + aiContent + '</div>' +\n'<div style=\"text-align:center;padding:15px 0;border-top:1px solid #1a1f2e;\">' +\n'<p style=\"color:#475569;font-size:12px;margin:0;\">90-Day War Plan AI Accountability Partner</p>' +\n'</div>' +\n'</td></tr></table></body></html>';\n\nreturn [{ json: { subject: stats.subject, html } }];"
+      },
+      "name": "Build HTML Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1790,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer __RESEND_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"War Plan <warplan@operscale.cloud>\",\n  \"to\": [\"akinolaakinrimisi@gmail.com\"],\n  \"subject\": {{ JSON.stringify($json.subject) }},\n  \"html\": {{ JSON.stringify($json.html) }}\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Send Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2010,
+        200
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "Resend OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2230,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow\": \"WF14\",\n  \"day_num\": {{ $('Day Counter').first().json.start_day_num }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"weekly_preview_email\",\n  \"task\": \"email\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2450,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Email failed — prepare Telegram fallback\nconst stats = $('Phase Targets').first().json;\nconst text = '📧 Week ' + stats.week_num + ' preview email FAILED to send.\\n\\n' +\n  'Phase ' + stats.phase + ' · Target: $' + stats.weekly_target + '/wk\\n' +\n  stats.days_remaining + ' days remaining in the plan.\\n\\n' +\n  'Check Resend dashboard for error details.';\nreturn [{ json: { fallback_text: text } }];"
+      },
+      "name": "Email Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2450,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI generation failed — prepare Telegram fallback\nconst dc = $('Day Counter').first().json;\nconst text = '📧 Week ' + dc.week_num + ' preview email — AI generation failed.\\n' +\n  'Next week: Days ' + dc.start_day_num + '-' + dc.end_day_num + ' (' + dc.monday_date + ' to ' + dc.friday_date + ')';\nreturn [{ json: { fallback_text: text } }];"
+      },
+      "name": "AI Fallback Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1790,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot__TELEGRAM_BOT_TOKEN__/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"463579738\", \"text\": {{ JSON.stringify($json.fallback_text) }}}"
+      },
+      "name": "Telegram Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2670,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow\": \"WF14\",\n  \"day_num\": {{ $('Day Counter').first().json.start_day_num }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"weekly_preview_fallback\",\n  \"task\": \"email\",\n  \"ai_generated\": false,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "name": "Log Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2890,
+        400
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] }
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Day Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Day Counter": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Get Cumulative Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cumulative Stats": {
+      "main": [
+        [
+          {
+            "node": "Phase Targets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phase Targets": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Preview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Preview": {
+      "main": [
+        [
+          {
+            "node": "AI Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Success?": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Fallback Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Resend OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend OK?": {
+      "main": [
+        [
+          {
+            "node": "Log Interaction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Telegram Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Fallback Handler": {
+      "main": [
+        [
+          {
+            "node": "Telegram Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Fallback": {
+      "main": [
+        [
+          {
+            "node": "Log Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
-  "tags": [{ "name": "war-plan" }],
-  "_meta": { "status": "scaffold", "directive": "directives/15_weekly_preview_email.md", "notes": "Placeholder — needs full build per directive 15. Remaining nodes: Supabase GET config, NT Assignments, Phase Targets, OpenRouter, Build HTML, Resend POST, Error Check, Telegram Fallback, Supabase POST interactions." }
+  "settings": {
+    "timezone": "Africa/Lagos",
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "war-plan"
+    }
+  ]
 }

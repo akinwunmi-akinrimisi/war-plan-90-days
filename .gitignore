@@ -27,6 +27,8 @@ fix_webhooks.js
 verify_workflows.js
 fix_daycounter.js
 deploy_daycounter_fix.js
+build_wf13_wf14.js
+deploy_wf13_wf14.js
 *_temp.json
 
 # Claude Code

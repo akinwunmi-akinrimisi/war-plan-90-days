@@ -21,8 +21,8 @@
 | WF10 (Supabase Sync) | `JTjF36Y3Ce1F8khb` | Deployed + Active |
 | WF11 (Career Reminders) | `guEzYDai4jvwEDzw` | Deployed + Active |
 | WF12 (YouTube Check-in) | `YU7fUQusTLyHyXt1` | Deployed + Active |
-| WF13 (Weekly Lookback Email) | — | Scaffold only |
-| WF14 (Weekly Preview Email) | — | Scaffold only |
+| WF13 (Weekly Lookback Email) | `LIwPOSpvxXpHJjbU` | Deployed + Active |
+| WF14 (Weekly Preview Email) | `LjdcRrTCWIHxRAoA` | Deployed + Active |
 
 **Credential pattern:** Supabase anon key hardcoded in nodes. Sensitive secrets (Telegram, Slack, OpenRouter, Resend) hardcoded on n8n server, `__PLACEHOLDER__` in local JSON files.
 

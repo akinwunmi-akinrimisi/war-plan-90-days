@@ -3,23 +3,525 @@
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [{ "triggerAtHour": 8, "triggerAtMinute": 0 }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 0"
+            }
+          ]
+        }
       },
-      "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
-      "position": [250, 300]
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Day Counter — calculate current week number and date range\nconst config = { start_date: '2026-03-02' };\nconst start = new Date(config.start_date + 'T00:00:00+01:00');\nconst now = new Date();\nconst diffDays = Math.floor((now - start) / 86400000);\nconst weekNum = Math.ceil((diffDays + 1) / 7);\n\n// Get Mon-Fri of current week\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nreturn [{ json: { weekNum, mondayDate: monday.toISOString().split('T')[0], fridayDate: friday.toISOString().split('T')[0] } }];"
+        "jsCode": "// Day Counter — calculate concluded week number and date range\nfunction getWeekdayDates() {\n  const dates = [];\n  let d = new Date(Date.UTC(2026, 2, 2));\n  while (dates.length < 90) {\n    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) dates.push(d.toISOString().split('T')[0]);\n    d = new Date(d.getTime() + 86400000);\n  }\n  return dates;\n}\nconst weekdays = getWeekdayDates();\nconst now = new Date();\nconst todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });\n\n// On Sunday, find last weekday to determine concluded week\nlet lastWeekdayIdx = -1;\nfor (let i = weekdays.length - 1; i >= 0; i--) {\n  if (weekdays[i] <= todayStr) { lastWeekdayIdx = i; break; }\n}\n\nconst weekNum = lastWeekdayIdx >= 0 ? Math.ceil((lastWeekdayIdx + 1) / 5) : 1;\nconst weekStartIdx = (weekNum - 1) * 5;\nconst weekEndIdx = Math.min(weekNum * 5 - 1, weekdays.length - 1);\nconst mondayDate = weekStartIdx >= 0 ? weekdays[weekStartIdx] : todayStr;\nconst fridayDate = weekEndIdx >= 0 && weekEndIdx < weekdays.length ? weekdays[weekEndIdx] : todayStr;\nconst startDayNum = weekStartIdx + 1;\nconst endDayNum = weekEndIdx + 1;\n\nreturn [{ json: { week_num: weekNum, monday_date: mondayDate, friday_date: fridayDate, start_day_num: startDayNum, end_day_num: endDayNum, date: todayStr } }];"
       },
-      "name": "Day Counter", "type": "n8n-nodes-base.code", "typeVersion": 2,
-      "position": [470, 300]
+      "name": "Day Counter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            }
+          ]
+        }
+      },
+      "name": "Read Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        690,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=gte.{{ $('Day Counter').first().json.start_day_num }}&day_num=lte.{{ $('Day Counter').first().json.end_day_num }}&select=*&order=day_num.asc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            }
+          ]
+        }
+      },
+      "name": "Get Weekly Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        910,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Weekly Stats — aggregate scores and disciplines\nconst logs = $('Get Weekly Logs').all().map(i => i.json);\nconst weekLogs = logs.length > 0 && Array.isArray(logs[0]) ? logs[0] : logs;\nconst dayCounter = $('Day Counter').first().json;\n\nlet totalScore = 0, prayerSessions = 0, ntChapters = 0, bookPages = 0;\nlet codeHrs = 0, proposalsSent = 0, revenueEarned = 0, videosPublished = 0;\nlet bestDay = { num: 0, score: -1 };\nlet worstDay = { num: 0, score: 101 };\nlet daysWithData = 0;\nconst dayScores = [];\n\nfor (const log of weekLogs) {\n  if (!log || !log.day_num) continue;\n  daysWithData++;\n  const score = log.day_score || 0;\n  totalScore += score;\n  dayScores.push({ day: log.day_num, date: log.day_date || '', score });\n  if (log.prayer_s1) prayerSessions++;\n  if (log.prayer_s2) prayerSessions++;\n  ntChapters += (log.nt_chapters_read || 0);\n  bookPages += (log.book_pages || 0);\n  codeHrs += (log.code_hrs || 0);\n  proposalsSent += (log.proposals_sent || 0);\n  revenueEarned += (log.revenue_today || 0);\n  videosPublished += (log.videos_published || 0);\n  if (score > bestDay.score) bestDay = { num: log.day_num, score };\n  if (score < worstDay.score) worstDay = { num: log.day_num, score };\n}\n\nconst avgScore = daysWithData > 0 ? Math.round(totalScore / daysWithData) : 0;\nconst weekNum = dayCounter.week_num;\nlet phase = 1, weeklyTarget = 1000;\nif (weekNum >= 9) { phase = 3; weeklyTarget = 20000; }\nelse if (weekNum >= 5) { phase = 2; weeklyTarget = 5000; }\n\nconst dateRange = dayCounter.monday_date + ' to ' + dayCounter.friday_date;\nconst subject = 'War Plan · Week ' + weekNum + ' Concluded — ' + avgScore + '% average · $' + revenueEarned + ' earned';\n\nreturn [{ json: {\n  week_num: weekNum, date_range: dateRange, avg_score: avgScore,\n  days_with_data: daysWithData, prayer_sessions: prayerSessions,\n  nt_chapters: ntChapters, book_pages: bookPages,\n  code_hrs: Math.round(codeHrs * 10) / 10,\n  proposals_sent: proposalsSent, revenue_earned: revenueEarned,\n  videos_published: videosPublished, best_day: bestDay, worst_day: worstDay,\n  day_scores: dayScores, phase, weekly_target: weeklyTarget, subject\n} }];"
+      },
+      "name": "Weekly Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1130,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer __OPENROUTER_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Generate the HTML body for a weekly lookback email for Akinwunmi's 90-Day War Plan.\\n\\nRules:\\n- Write as a trusted accountability partner — honest, not harsh\\n- Open with a faith reflection (one scripture reference)\\n- Be specific about what went well and what didn't\\n- Name patterns if visible (e.g., 'Friday scores consistently drop')\\n- Revenue: on track / behind / ahead for the phase\\n- Close with encouragement for the week ahead\\n- Output clean HTML fragments (no <html>/<head>/<body> tags — just content divs)\\n- Use inline styles only. Colors: prayer=#f59e0b, NT=#22c55e, book=#a855f7, code=#3b82f6, career=#ef4444, YouTube=#ea580c\\n- Font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\\n- Text color: #e2e8f0 on dark background #07090c\\n- 300-500 words\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Week: {{ $json.week_num }} ({{ $json.date_range }})\\nRevenue Phase: {{ $json.phase }} (target: ${{ $json.weekly_target }}/wk)\\nRevenue this week: ${{ $json.revenue_earned }}\\nAvg score: {{ $json.avg_score }}%\\n\\nDay scores: {{ JSON.stringify($json.day_scores) }}\\n\\nPrayer sessions: {{ $json.prayer_sessions }}/10\\nNT chapters: {{ $json.nt_chapters }}\\nBook pages: {{ $json.book_pages }}\\nCode hours: {{ $json.code_hrs }}/17.5\\nProposals sent: {{ $json.proposals_sent }}\\nVideos published: {{ $json.videos_published }}\\n\\nBest day: Day {{ $json.best_day.num }} ({{ $json.best_day.score }}%)\\nWorst day: Day {{ $json.worst_day.num }} ({{ $json.worst_day.score }}%)\"\n    }\n  ],\n  \"max_tokens\": 1500,\n  \"temperature\": 0.7\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "OpenRouter Lookback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1350,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "AI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1570,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HTML Email — wrap Claude output in styled email template\nconst stats = $('Weekly Stats').first().json;\nconst aiContent = $('OpenRouter Lookback').first().json.choices[0].message.content;\nconst font = \"-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif\";\n\nconst html = '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>' +\n'<body style=\"margin:0;padding:0;background-color:#07090c;font-family:' + font + ';\">' +\n'<table role=\"presentation\" width=\"100%\" style=\"max-width:600px;margin:0 auto;background-color:#07090c;\">' +\n'<tr><td style=\"padding:30px 20px;\">' +\n'<div style=\"text-align:center;padding:20px 0;border-bottom:2px solid #1a1f2e;\">' +\n'<h1 style=\"color:#e2e8f0;font-size:24px;margin:0;\">⚔️ War Plan · Week ' + stats.week_num + ' Lookback</h1>' +\n'<p style=\"color:#94a3b8;font-size:14px;margin:8px 0 0;\">' + stats.date_range + '</p>' +\n'<p style=\"color:#f59e0b;font-size:16px;margin:8px 0 0;\">Phase ' + stats.phase + ' · Avg Score: ' + stats.avg_score + '% · $' + stats.revenue_earned + ' earned</p>' +\n'</div>' +\n'<div style=\"padding:20px 0;color:#e2e8f0;font-size:14px;line-height:1.6;\">' + aiContent + '</div>' +\n'<div style=\"text-align:center;padding:15px 0;border-top:1px solid #1a1f2e;\">' +\n'<p style=\"color:#475569;font-size:12px;margin:0;\">90-Day War Plan AI Accountability Partner</p>' +\n'</div>' +\n'</td></tr></table></body></html>';\n\nreturn [{ json: { subject: stats.subject, html } }];"
+      },
+      "name": "Build HTML Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1790,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer __RESEND_API_KEY__"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"War Plan <warplan@operscale.cloud>\",\n  \"to\": [\"akinolaakinrimisi@gmail.com\"],\n  \"subject\": {{ JSON.stringify($json.subject) }},\n  \"html\": {{ JSON.stringify($json.html) }}\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Send Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2010,
+        200
+      ],
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "Resend OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2230,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow\": \"WF13\",\n  \"day_num\": {{ $('Day Counter').first().json.end_day_num }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"weekly_lookback_email\",\n  \"task\": \"email\",\n  \"ai_generated\": true,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "name": "Log Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2450,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Email failed — prepare Telegram fallback\nconst stats = $('Weekly Stats').first().json;\nconst text = '📧 Week ' + stats.week_num + ' lookback email FAILED to send.\\n\\n' +\n  'Key stats:\\n' +\n  '- Avg Score: ' + stats.avg_score + '%\\n' +\n  '- Revenue: $' + stats.revenue_earned + '\\n' +\n  '- Prayer: ' + stats.prayer_sessions + '/10 sessions\\n' +\n  '- Code: ' + stats.code_hrs + '/17.5 hrs\\n' +\n  '- Best: Day ' + stats.best_day.num + ' (' + stats.best_day.score + '%)\\n' +\n  '- Worst: Day ' + stats.worst_day.num + ' (' + stats.worst_day.score + '%)\\n\\n' +\n  'Check Resend dashboard for error details.';\nreturn [{ json: { fallback_text: text } }];"
+      },
+      "name": "Email Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2450,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI generation failed — prepare Telegram fallback\nconst dc = $('Day Counter').first().json;\nconst text = '📧 Week ' + dc.week_num + ' lookback email — AI generation failed.\\n' +\n  'Check Supabase daily_log for days ' + dc.start_day_num + '-' + dc.end_day_num + '.';\nreturn [{ json: { fallback_text: text } }];"
+      },
+      "name": "AI Fallback Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1790,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot__TELEGRAM_BOT_TOKEN__/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"463579738\", \"text\": {{ JSON.stringify($json.fallback_text) }}}"
+      },
+      "name": "Telegram Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2670,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow\": \"WF13\",\n  \"day_num\": {{ $('Day Counter').first().json.end_day_num }},\n  \"direction\": \"outbound\",\n  \"message_type\": \"weekly_lookback_fallback\",\n  \"task\": \"email\",\n  \"ai_generated\": false,\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "name": "Log Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2890,
+        400
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger": { "main": [[{ "node": "Day Counter", "type": "main", "index": 0 }]] }
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Day Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Day Counter": {
+      "main": [
+        [
+          {
+            "node": "Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config": {
+      "main": [
+        [
+          {
+            "node": "Get Weekly Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Weekly Logs": {
+      "main": [
+        [
+          {
+            "node": "Weekly Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Stats": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Lookback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Lookback": {
+      "main": [
+        [
+          {
+            "node": "AI Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Success?": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Fallback Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Resend OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend OK?": {
+      "main": [
+        [
+          {
+            "node": "Log Interaction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Telegram Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Fallback Handler": {
+      "main": [
+        [
+          {
+            "node": "Telegram Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Fallback": {
+      "main": [
+        [
+          {
+            "node": "Log Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "timezone": "Africa/Lagos", "executionOrder": "v1" },
-  "tags": [{ "name": "war-plan" }],
-  "_meta": { "status": "scaffold", "directive": "directives/14_weekly_lookback_email.md", "notes": "Placeholder — needs full build per directive 14. Remaining nodes: Supabase GET, Weekly Stats, Cumulative Stats, OpenRouter, Build HTML, Resend POST, Error Check, Telegram Fallback, Supabase POST interactions." }
+  "settings": {
+    "timezone": "Africa/Lagos",
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "war-plan"
+    }
+  ]
 }

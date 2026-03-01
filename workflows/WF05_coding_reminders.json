@@ -55,12 +55,12 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/config?select=*&limit=1",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/config?select=*&limit=1",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
-            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
+            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" }
           ]
         }
       },
@@ -90,12 +90,12 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/daily_log?day_num=eq.{{ $('Day Counter').first().json.day_number }}&select=*",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
-            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" }
+            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
+            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" }
           ]
         }
       },
@@ -111,7 +111,7 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer __OPENROUTER_API_KEY__" },
             { "name": "Content-Type", "value": "application/json" }
           ]
         },
@@ -148,14 +148,14 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "url": "=https://api.telegram.org/bot__TELEGRAM_BOT_TOKEN__/sendMessage",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [{ "name": "Content-Type", "value": "application/json" }]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
+        "jsonBody": "={\"chat_id\": \"463579738\", \"text\": {{ JSON.stringify($json.choices[0].message.content) }}, \"parse_mode\": \"Markdown\"}"
       },
       "name": "Send Telegram",
       "type": "n8n-nodes-base.httpRequest",
@@ -165,12 +165,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/interactions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
-            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
+            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
             { "name": "Content-Type", "value": "application/json" },
             { "name": "Prefer", "value": "return=minimal" }
           ]
@@ -196,14 +196,14 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "url": "=https://api.telegram.org/bot__TELEGRAM_BOT_TOKEN__/sendMessage",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [{ "name": "Content-Type", "value": "application/json" }]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\", \"text\": {{ JSON.stringify($json.fallback_message) }}, \"parse_mode\": \"Markdown\"}"
+        "jsonBody": "={\"chat_id\": \"463579738\", \"text\": {{ JSON.stringify($json.fallback_message) }}, \"parse_mode\": \"Markdown\"}"
       },
       "name": "Send Telegram Fallback",
       "type": "n8n-nodes-base.httpRequest",
@@ -213,12 +213,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/interactions",
+        "url": "=https://yjckymmudyionytzkxcb.supabase.co/rest/v1/interactions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $env.SUPABASE_API_KEY }}" },
-            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_API_KEY }}" },
+            { "name": "apikey", "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
+            { "name": "Authorization", "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqY2t5bW11ZHlpb255dHpreGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMTI1MDksImV4cCI6MjA4Nzg4ODUwOX0.F5I8t1-nTNjNy8h9a0ikm6MBtgvCvQmNEpov3OI8pKU" },
             { "name": "Content-Type", "value": "application/json" },
             { "name": "Prefer", "value": "return=minimal" }
           ]
